@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>杨昊翔 - AI产品经理</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #fffbf5;
+    --card-bg: #fffef9;
+    --dark-bar: #4e342e;
+    --text-primary: #4e342e;
+    --text-secondary: #8d6e63;
+    --text-muted: #a1887f;
+    --text-light: #bcaaa4;
+    --border: #e8ddd0;
+    --accent: #c9b99a;
+    --tag-bg: rgba(201,185,154,0.15);
+    --shadow: 0 1px 3px rgba(78,52,46,0.06);
+    --shadow-hover: 0 4px 16px rgba(78,52,46,0.10);
+  }
+
+  body {
+    font-family: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+    background: #f5f0eb;
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Top Bar ── */
+  .topbar {
+    background: var(--dark-bar);
+    color: #fff;
+    padding: 28px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 36px;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 24px; flex-shrink: 0; }
+  .topbar-text { display: flex; flex-direction: column; gap: 4px; }
+  .topbar-photo {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--accent);
+    flex-shrink: 0;
+  }
+  .career-tag {
+    display: inline-block;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 3px 14px;
+    border-radius: 20px;
+    width: fit-content;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .topbar-name {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #fff;
+  }
+  .topbar-sub {
+    font-size: 14px;
+    color: #d7ccc8;
+    letter-spacing: 1px;
+    font-weight: 400;
+  }
+  .topbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+    font-size: 12px;
+    color: #bcaaa4;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .topbar-right span {
+    white-space: nowrap;
+  }
+
+  /* ── Content Area ── */
+  .content {
+    background: var(--cream);
+    padding: 32px 48px 40px;
+    display: flex;
+    gap: 28px;
+  }
+  .col { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    cursor: pointer;
+    transition: box-shadow 200ms ease, transform 200ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 1px;
+  }
+  .card-date {
+    font-size: 11px;
+    color: var(--text-light);
+    white-space: nowrap;
+  }
+  .card-subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .card-summary {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .card-expand-hint {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .card-expand-hint::before {
+    content: "▼";
+    font-size: 8px;
+    transition: transform 250ms ease;
+  }
+  .card.expanded .card-expand-hint::before {
+    transform: rotate(180deg);
+  }
+
+  /* Card detail (hidden by default) */
+  .card-detail {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 350ms ease, margin-top 350ms ease, opacity 250ms ease;
+    opacity: 0;
+  }
+  .card.expanded .card-detail {
+    max-height: 600px;
+    margin-top: 12px;
+    opacity: 1;
+  }
+  .card-detail-inner {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+  .card-detail-inner ul {
+    list-style: none;
+    padding: 0;
+  }
+  .card-detail-inner ul li {
+    padding: 2px 0;
+    padding-left: 14px;
+    position: relative;
+  }
+  .card-detail-inner ul li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 10px;
+  }
+
+  /* ── Skills tags ── */
+  .skill-group { margin-bottom: 6px; }
+  .skill-label { font-weight: 600; color: var(--text-secondary); font-size: 11px; }
+  .skill-items { color: var(--text-muted); font-size: 11px; }
+
+  /* ── Honors grid ── */
+  .honors-list { display: flex; flex-direction: column; gap: 4px; }
+  .honor-item { display: flex; gap: 8px; font-size: 11px; color: var(--text-muted); }
+  .honor-date { color: var(--text-light); white-space: nowrap; min-width: 52px; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 0 0 36px;
+    font-size: 11px;
+    color: var(--text-light);
+    letter-spacing: 1px;
+  }
+
+  /* ── Scroll Reveal ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 500ms ease, transform 500ms ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .topbar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 24px 24px;
+    }
+    .topbar-right { text-align: left; gap: 6px 16px; }
+    .content {
+      flex-direction: column;
+      padding: 20px 24px 28px;
+    }
+    .col { gap: 10px; }
+    .card { padding: 14px 16px; }
+  }
+
+  /* ── Print ── */
+  @media print {
+    body { background: #fff; }
+    .topbar {
+      background: #fff;
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--dark-bar);
+      border-radius: 0;
+      margin: 0;
+      padding: 20px 0;
+      max-width: 100%;
+    }
+    .topbar-name { color: var(--text-primary); }
+    .topbar-sub { color: var(--text-muted); }
+    .topbar-right { color: var(--text-secondary); }
+    .career-tag { border-color: var(--dark-bar); color: var(--dark-bar); }
+    .content { max-width: 100%; border-radius: 0; padding: 16px 0; gap: 12px; }
+    .card {
+      box-shadow: none;
+      break-inside: avoid;
+      cursor: default;
+      border: 1px solid #ddd;
+    }
+    .card:hover { transform: none; box-shadow: none; }
+    .card-detail { max-height: none; opacity: 1; margin-top: 10px; }
+    .card-expand-hint { display: none; }
+    .card { page-break-inside: avoid; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════ Top Bar ════ -->
+<header class="topbar reveal">
+  <div class="topbar-left">
+    <img class="topbar-photo" src="photo.jpg" alt="杨昊翔">
+    <div class="topbar-text">
+      <span class="career-tag">职业向往：AI 产品经理</span>
+      <h1 class="topbar-name">杨昊翔</h1>
+      <p class="topbar-sub">天津工业大学 · 人工智能</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span>籍贯：湖南湘潭</span>
+    <span style="color:#8d6e63">|</span>
+    <span>2005.06</span>
+    <span style="color:#8d6e63">|</span>
+    <span>191-7322-6879</span>
+    <span style="color:#8d6e63">|</span>
+    <span>19173226879@163.com</span>
+  </div>
+</header>
+
+<!-- ════ Content ════ -->
+<main class="content">
+
+  <!-- Left Column -->
+  <div class="col">
+
+    <!-- 教育背景 -->
+    <article class="card reveal" onclick="toggleCard(this)">
+      <div class="card-header">
+        <h2 class="card-title">教育背景</h2>
+        <span class="card-date">2023.09 — 2027.06</span>
+      </div>
+      <p class="card-subtitle">天津工业大学（双一流） · 人工智能 · 本科</p>
+      <p class="card-summary">GPA：3.25 / 4.0（专业前 18%，排名 19/64）</p>
+      <div class="card-expand-hint">核心课程</div>
+      <div class="card-detail">
+        <div class="card-detail-inner">
+          <ul>
+            <li>自动控制原理、机器学习、深度学习</li>
+            <li>计算机原理与嵌入式系统、模拟电子技术、数字电子技术</li>
+            <li>数据结构、自然语言处理</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- 项目经历 -->
+    <article class="card reveal" onclick="toggleCard(this)">
+      <div class="card-header">
+        <h2 class="card-title">bilibili_RAG 项目</h2>
+        <span class="card-date">2026.02 — 至今</span>
+      </div>
+      <p class="card-subtitle">独立开发 · 全栈项目</p>
+      <p class="card-summary">基于 RAG 的视频知识库智能问答系统，实现从视频下载到智能问答的全流程自动化</p>
+      <div class="card-expand-hint">技术细节</div>
+      <div class="card-detail">
+        <div class="card-detail-inner">
+          <ul>
+            <li>采用 RAG Pipeline 构建端到端流水线，使用 ChromaDB 双轨向量存储（语义向量 + 结构化元数据）</li>
+            <li>通过 Whisper（本地 + 云端双模）进行语音转写，设计多级兜底策略解决平台防盗链问题</li>
+            <li>前端提供 Streamlit 可视化界面，同时开放 FastAPI RESTful API 和 CLI 命令行工具</li>
+            <li>支持知识溯源到视频具体时间戳，核心术语召回准确率达 90%+，平均响应时间 &lt;3 秒</li>
+            <li>技术栈：LangChain · ChromaDB · Whisper · Streamlit · FastAPI · Docker</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="card reveal" onclick="toggleCard(this)">
+      <div class="card-header">
+        <h2 class="card-title">推理加速优化</h2>
+        <span class="card-date">2025.09 — 2026.03</span>
+      </div>
+      <p class="card-subtitle">基于 Transformer 的大模型推理 · 组员</p>
+      <p class="card-summary">设计两阶段物理解耦推理架构，优化 Prefill 与 Decode 阶段的计算效率</p>
+      <div class="card-expand-hint">详情</div>
+      <div class="card-detail">
+        <div class="card-detail-inner">
+          <ul>
+            <li>针对大模型推理中 Prefill（预填充）与 Decode（逐词生成）阶段计算特性与资源需求差异显著的问题，设计并实现两阶段物理解耦推理架构</li>
+            <li>优化后首令牌延迟显著降低，解码吞吐量提升，支持更长上下文场景下的稳定推理</li>
+            <li>采用零拷贝共享内存（同机）与 RDMA（跨机）优化两阶段间的 KV Cache 传输协议</li>
+            <li>开发轻量级请求转发代理，将用户请求的 Prefill 阶段路由至专用 Prefill 节点，完成后将 KV Cache 及中间状态传输至 Decode 节点继续生成</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- Right Column -->
+  <div class="col">
+
+    <!-- 实习经历 -->
+    <article class="card reveal" onclick="toggleCard(this)">
+      <div class="card-header">
+        <h2 class="card-title">实习经历</h2>
+        <span class="card-date">2025.07 — 2025.09</span>
+      </div>
+      <p class="card-subtitle">广东泽阳智能科技有限公司</p>
+      <p class="card-summary">软件开发实习生 · 负责上位机调试与前端界面开发</p>
+      <div class="card-expand-hint">详情</div>
+      <div class="card-detail">
+        <div class="card-detail-inner">
+          <ul>
+            <li>调试上位机设备约 80 余台，参与前端界面的设计与实现，提升用户交互体验</li>
+            <li>深入分析公司核心产品的代码架构，参与代码优化与文档编写，提升代码可读性与维护性</li>
+            <li>学习掌握 C# 代码编写能力，掌握上位机的调试与运维技术</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- 个人技能 -->
+    <article class="card reveal" onclick="toggleCard(this)">
+      <div class="card-header">
+        <h2 class="card-title">个人技能</h2>
+      </div>
+      <div class="skill-group">
+        <span class="skill-label">语言能力：</span>
+        <span class="skill-items">CET-6 证书，听说读写能力满足日常工作交流及需求解读</span>
+      </div>
+      <div class="skill-group">
+        <span class="skill-label">编程语言：</span>
+        <span class="skill-items">Python · C · C#</span>
+      </div>
+      <div class="skill-group">
+        <span class="skill-label">AI 能力：</span>
+        <span class="skill-items">熟悉 Transformer 等模型结构 · Prompt 调试 · RAG</span>
+      </div>
+      <div class="skill-group">
+        <span class="skill-label">开发工具：</span>
+        <span class="skill-items">Claude Code · OpenClaw · VSCode · Linux</span>
+      </div>
+      <div class="card-expand-hint">办公技能</div>
+      <div class="card-detail">
+        <div class="card-detail-inner">
+          <ul>
+            <li>熟练运用 Excel 进行数据整理与基础分析</li>
+            <li>擅长制作结构清晰的 PPT，能独立完成汇报材料</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- 荣誉奖项 -->
+    <article class="card reveal" onclick="toggleCard(this)">
+      <div class="card-header">
+        <h2 class="card-title">荣誉奖项</h2>
+      </div>
+      <div class="honors-list">
+        <div class="honor-item"><span class="honor-date">2025.12</span>校级三好学生 · 校级奖学金</div>
+        <div class="honor-item"><span class="honor-date">2025.11</span>华为 ICT 大赛 省级二等奖</div>
+        <div class="honor-item"><span class="honor-date">2025.07</span>大学生创新创业大赛 校奖</div>
+        <div class="honor-item"><span class="honor-date">2025.05</span>蓝桥杯全国软件和信息技术大赛 B 组 省级二等奖</div>
+      </div>
+      <div class="card-expand-hint">详情</div>
+      <div class="card-detail">
+        <div class="card-detail-inner">
+          <ul>
+            <li><strong>蓝桥杯 B 组省级二等奖</strong> — 全国软件和信息技术专业人才大赛，算法与编程能力竞赛</li>
+            <li><strong>华为 ICT 大赛省级二等奖</strong> — 华为举办的信息通信技术竞赛，涉及云计算与AI方向</li>
+            <li><strong>校级三好学生 & 校级奖学金</strong> — 综合学业成绩与在校表现评定</li>
+            <li><strong>大学生创新创业大赛校奖</strong> — 创新创业项目策划与实施</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</main>
+
+<footer class="footer reveal">── 谢谢阅读 ──</footer>
+
+<script>
+  // ── Card Expand/Collapse (Accordion) ──
+  function toggleCard(card) {
+    const wasExpanded = card.classList.contains('expanded');
+
+    // Collapse all cards first
+    document.querySelectorAll('.card.expanded').forEach(c => c.classList.remove('expanded'));
+
+    // If the clicked card wasn't expanded, expand it
+    if (!wasExpanded) {
+      card.classList.add('expanded');
+    }
+  }
+
+  // ── Scroll Reveal ──
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -30px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
