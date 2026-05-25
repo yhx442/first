@@ -227,6 +227,87 @@ let captures = { [BLACK]: 0, [WHITE]: 0 };
 let lastMove = null;        // {row, col} or null
 let koPoint = null;         // {row, col} or null
 
+// ===== Group & Liberty Utilities =====
+
+/** Get all stones in a connected group starting from (row, col) */
+function getGroup(row, col) {
+  const color = board[row][col];
+  if (color === EMPTY) return [];
+  const group = [];
+  const visited = new Set();
+  const stack = [[row, col]];
+
+  while (stack.length > 0) {
+    const [r, c] = stack.pop();
+    const key = r * BOARD_SIZE + c;
+    if (visited.has(key)) continue;
+    visited.add(key);
+    group.push([r, c]);
+
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE &&
+          board[nr][nc] === color && !visited.has(nr * BOARD_SIZE + nc)) {
+        stack.push([nr, nc]);
+      }
+    }
+  }
+  return group;
+}
+
+/** Count liberties for a group given its stones */
+function countLiberties(group) {
+  const liberties = new Set();
+  for (const [r, c] of group) {
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE &&
+          board[nr][nc] === EMPTY) {
+        liberties.add(nr * BOARD_SIZE + nc);
+      }
+    }
+  }
+  return liberties.size;
+}
+
+/** Get all adjacent opposing groups to (row, col) */
+function getAdjacentOpponentGroups(row, col) {
+  const myColor = board[row][col];
+  const seen = new Set();
+  const groups = [];
+
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const nr = row + dr, nc = col + dc;
+    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE &&
+        board[nr][nc] !== EMPTY && board[nr][nc] !== myColor) {
+      const key = nr * BOARD_SIZE + nc;
+      if (!seen.has(key)) {
+        const group = getGroup(nr, nc);
+        for (const [gr, gc] of group) seen.add(gr * BOARD_SIZE + gc);
+        groups.push(group);
+      }
+    }
+  }
+  return groups;
+}
+
+/** Deep-clone the board */
+function cloneBoard(b) {
+  return b.map(row => [...row]);
+}
+
+/** Compute a positional hash for ko detection */
+function boardHash(b) {
+  let h = 0;
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      h = ((h << 5) - h) + b[r][c];
+      h |= 0;
+    }
+  }
+  return h;
+}
+
 // ===== Board Renderer =====
 function boardToPixel(row, col) {
   return {
@@ -360,6 +441,28 @@ window.addEventListener('resize', () => {
 
 // Initial render
 drawBoard();
+
+// ===== Self-test (run once on load) =====
+function runTests() {
+  // Test getGroup
+  board[0][0] = BLACK;
+  board[0][1] = BLACK;
+  const g = getGroup(0, 0);
+  console.assert(g.length === 2, 'getGroup should find 2 connected stones');
+  console.assert(countLiberties(g) === 2, 'corner group should have 2 liberties');
+
+  // Test clone
+  const clone = cloneBoard(board);
+  console.assert(clone[0][0] === BLACK, 'clone should preserve values');
+  clone[0][0] = EMPTY;
+  console.assert(board[0][0] === BLACK, 'clone should be independent');
+
+  // Cleanup
+  board[0][0] = EMPTY;
+  board[0][1] = EMPTY;
+  console.log('All engine tests passed');
+}
+runTests();
 </script>
 
 </body>
