@@ -839,25 +839,44 @@ async function loadAIModel() {
   progressEl.style.width = '20%';
 
   try {
-    const MODEL_URL = 'https://maksimkorzh.github.io/kata-model-js/model/model.json';
+    // Try multiple possible model paths
+    const MODEL_URLS = [
+      'https://maksimkorzh.github.io/kata-model-js/model.json',
+      'https://maksimkorzh.github.io/kata-model-js/model/model.json',
+    ];
+    let modelLoaded = false;
 
-    aiModel = await tf.loadGraphModel(MODEL_URL, {
-      onProgress: (fraction) => {
-        const pct = Math.round(20 + fraction * 70);
-        progressEl.style.width = pct + '%';
-        if (fraction < 1) {
-          statusEl.textContent = `下载模型中... ${Math.round(fraction * 100)}%`;
-        }
+    for (const url of MODEL_URLS) {
+      try {
+        statusEl.textContent = `尝试加载: ${url.split('/').pop()}...`;
+        aiModel = await tf.loadGraphModel(url, {
+          onProgress: (fraction) => {
+            const pct = Math.round(20 + fraction * 70);
+            progressEl.style.width = pct + '%';
+            if (fraction < 1) {
+              statusEl.textContent = `下载模型中... ${Math.round(fraction * 100)}%`;
+            }
+          }
+        });
+        modelLoaded = true;
+        console.log('KataGo model loaded from:', url);
+        break;
+      } catch (e) {
+        console.warn('Failed to load from:', url, e.message);
       }
-    });
+    }
 
-    progressEl.style.width = '100%';
-    statusEl.textContent = '模型加载完成';
-    aiReady = true;
+    if (modelLoaded) {
+      progressEl.style.width = '100%';
+      statusEl.textContent = 'KataGo 模型加载完成';
+      aiReady = true;
+      setTimeout(() => {
+        document.getElementById('loadingOverlay').style.display = 'none';
+      }, 500);
+      return;
+    }
 
-    setTimeout(() => {
-      document.getElementById('loadingOverlay').style.display = 'none';
-    }, 500);
+    throw new Error('All model URLs failed');
 
   } catch (err) {
     console.warn('Failed to load KataGo model, using MCTS fallback:', err.message);
