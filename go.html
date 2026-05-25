@@ -1033,39 +1033,66 @@ function initMCTSEngine() {
       return liberties.size;
     }
 
-    function randomPlayout(board, startColor) {
+    function fastPlayout(board, startColor) {
       const b = board.map(r => [...r]);
       let color = startColor;
-      let passes = 0;
+      // Pre-build empty cell list and maintain it
+      const emptySet = new Set();
+      for (let r = 0; r < BOARD_SIZE; r++)
+        for (let c = 0; c < BOARD_SIZE; c++)
+          if (b[r][c] === EMPTY) emptySet.add(r * BOARD_SIZE + c);
 
-      for (let n = 0; n < 500 && passes < 2; n++) {
-        const moves = [];
-        for (let r = 0; r < BOARD_SIZE; r++) {
-          for (let c = 0; c < BOARD_SIZE; c++) {
-            if (b[r][c] === EMPTY && isValidMove(b, r, c, color)) {
-              moves.push([r, c]);
-            }
+      const emptyArr = () => [...emptySet];
+
+      for (let n = 0; n < 100 && emptySet.size > 0; n++) {
+        const cells = emptyArr();
+        const cell = cells[Math.floor(Math.random() * cells.length)];
+        const mr = Math.floor(cell / BOARD_SIZE);
+        const mc = cell % BOARD_SIZE;
+
+        // Check trivial: occupied
+        if (b[mr][mc] !== EMPTY) continue;
+
+        // Quick suicide check: count adjacent empty cells
+        let adjEmpty = 0;
+        for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr = mr + dr, nc = mc + dc;
+          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && b[nr][nc] === EMPTY) {
+            adjEmpty++;
           }
         }
 
-        if (moves.length === 0) {
-          passes++;
-        } else {
-          passes = 0;
-          const [mr, mc] = moves[Math.floor(Math.random() * moves.length)];
-          b[mr][mc] = color;
-          const opp = color === BLACK ? WHITE : BLACK;
-          for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-            const nr = mr + dr, nc = mc + dc;
-            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && b[nr][nc] === opp) {
-              const grp = getGroup(b, nr, nc);
-              if (countLiberties(b, grp) === 0) {
-                for (const [gr,gc] of grp) b[gr][gc] = EMPTY;
+        b[mr][mc] = color;
+        emptySet.delete(cell);
+
+        // Remove captured opponent groups
+        const opp = color === BLACK ? WHITE : BLACK;
+        let captured = false;
+        for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr = mr + dr, nc = mc + dc;
+          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && b[nr][nc] === opp) {
+            const grp = getGroup(b, nr, nc);
+            if (countLiberties(b, grp) === 0) {
+              captured = true;
+              for (const [gr,gc] of grp) {
+                b[gr][gc] = EMPTY;
+                emptySet.add(gr * BOARD_SIZE + gc);
               }
             }
           }
         }
-        color = color === BLACK ? WHITE : BLACK;
+
+        // Check suicide after captures
+        if (!captured && adjEmpty === 0) {
+          // Self-capture: check if own group has liberties
+          const myGroup = getGroup(b, mr, mc);
+          if (countLiberties(b, myGroup) === 0) {
+            b[mr][mc] = EMPTY;
+            emptySet.add(cell);
+          }
+        }
+
+        color = opp;
       }
 
       let black = 0, white = 0;
@@ -1095,14 +1122,15 @@ function initMCTSEngine() {
       }
 
       const results = [];
-      const simsPerMove = Math.max(10, Math.floor(numSims / moves.length));
+      // Use fewer sims per move, but minimum 5
+      const simsPerMove = Math.max(5, Math.floor(numSims / moves.length));
 
       for (const [r, c] of moves) {
         const b = board.map(row => [...row]);
         b[r][c] = color;
         let wins = 0;
         for (let i = 0; i < simsPerMove; i++) {
-          if (randomPlayout(b, color === BLACK ? WHITE : BLACK) === color) wins++;
+          if (fastPlayout(b, color === BLACK ? WHITE : BLACK) === color) wins++;
         }
         results.push({ row: r, col: c, wins, sims: simsPerMove });
       }
