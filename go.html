@@ -386,7 +386,7 @@ function undoLastTwoMoves() {
   if (moveHistory.length < 2) return false;
   // Undo AI move
   const aiMove = moveHistory.pop();
-  board[aiMove.row][aiMove.col] = EMPTY;
+  if (aiMove.row >= 0) board[aiMove.row][aiMove.col] = EMPTY;
   for (const cap of aiMove.captures) {
     board[cap.row][cap.col] = cap.color;
   }
@@ -394,7 +394,7 @@ function undoLastTwoMoves() {
 
   // Undo player move
   const playerMove = moveHistory.pop();
-  board[playerMove.row][playerMove.col] = EMPTY;
+  if (playerMove.row >= 0) board[playerMove.row][playerMove.col] = EMPTY;
   for (const cap of playerMove.captures) {
     board[cap.row][cap.col] = cap.color;
   }
@@ -1347,7 +1347,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.key === 'p' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); handlePass(); }
   if (e.key === 'u' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); handleUndo(); }
-  if (e.key === 'n' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); handleNewGame(); }
+  if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !aiThinking) { e.preventDefault(); handleNewGame(); }
 });
 
 // ===== Button bindings =====
