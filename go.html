@@ -194,6 +194,7 @@
 
 <div class="bottom-bar" id="statusBar">点击棋盘落子</div>
 
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script>
 // ===== Constants =====
 const BOARD_SIZE = 19;
@@ -701,45 +702,307 @@ function endGame() {
 let consecutivePasses = 0;
 let aiThinking = false;
 
-// Temporary mock AI — replaced by real AI in Task 8
-// Picks a random valid move so the game is playable during development
+// ===== AI Engine =====
+let aiModel = null;
+let aiReady = false;
+
+async function loadAIModel() {
+  const statusEl = document.getElementById('loadingStatus');
+  const progressEl = document.getElementById('progressFill');
+
+  statusEl.textContent = '下载 KataGo 模型中...';
+  progressEl.style.width = '20%';
+
+  try {
+    const MODEL_URL = 'https://maksimkorzh.github.io/kata-model-js/model/model.json';
+
+    aiModel = await tf.loadGraphModel(MODEL_URL, {
+      onProgress: (fraction) => {
+        const pct = Math.round(20 + fraction * 70);
+        progressEl.style.width = pct + '%';
+        if (fraction < 1) {
+          statusEl.textContent = `下载模型中... ${Math.round(fraction * 100)}%`;
+        }
+      }
+    });
+
+    progressEl.style.width = '100%';
+    statusEl.textContent = '模型加载完成';
+    aiReady = true;
+
+    setTimeout(() => {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }, 500);
+
+  } catch (err) {
+    console.warn('Failed to load KataGo model, using MCTS fallback:', err.message);
+    statusEl.textContent = '使用本地引擎...';
+    progressEl.style.width = '80%';
+
+    initMCTSEngine();
+    aiReady = true;
+    setTimeout(() => {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }, 300);
+  }
+}
+
+async function aiGetMove() {
+  if (aiModel) {
+    return await aiGetMoveNeural();
+  } else {
+    return await aiGetMoveMCTS();
+  }
+}
+
+async function aiGetMoveNeural() {
+  const myColor = WHITE;
+  const oppColor = BLACK;
+  const input = new Float32Array(3 * BOARD_SIZE * BOARD_SIZE);
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const idx = r * BOARD_SIZE + c;
+      input[idx] = board[r][c] === myColor ? 1 : 0;
+      input[BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === oppColor ? 1 : 0;
+      input[2 * BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === EMPTY ? 1 : 0;
+    }
+  }
+
+  const tensor = tf.tensor4d(input, [1, BOARD_SIZE, BOARD_SIZE, 3]);
+  const output = aiModel.predict(tensor);
+  const policy = Array.from(output.dataSync());
+  tensor.dispose();
+  output.dispose();
+
+  const candidates = [];
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const idx = r * BOARD_SIZE + c;
+      if (isValidMove(r, c, WHITE)) {
+        candidates.push({ row: r, col: c, prob: policy[idx] });
+      }
+    }
+  }
+  candidates.push({ row: -1, col: -1, prob: policy[361] });
+
+  candidates.sort((a, b) => b.prob - a.prob);
+
+  const TOP_K = 15;
+  const TEMPERATURE = 1.2;
+  const topK = candidates.slice(0, TOP_K);
+
+  const maxProb = Math.max(...topK.map(m => m.prob));
+  const expProbs = topK.map(m => Math.exp((m.prob - maxProb) / TEMPERATURE));
+  const sumExp = expProbs.reduce((a, b) => a + b, 0);
+  const probs = expProbs.map(e => e / sumExp);
+
+  const rand = Math.random();
+  let cum = 0;
+  for (let i = 0; i < topK.length; i++) {
+    cum += probs[i];
+    if (rand <= cum) return topK[i];
+  }
+  return topK[0];
+}
+
 async function aiMakeMove() {
   if (gameState !== 'PLAYING' || currentPlayer !== WHITE) return;
   aiThinking = true;
   updateUI();
   setStatus('AI 思考中...');
 
-  // Small delay to simulate thinking
-  await new Promise(r => setTimeout(r, 500));
+  try {
+    const move = await aiGetMove();
 
-  // Pick random valid move
-  const valid = [];
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      if (isValidMove(r, c, WHITE)) valid.push({ row: r, col: c });
+    if (move.row === -1) {
+      consecutivePasses++;
+      moveHistory.push({ row: -1, col: -1, color: WHITE, captures: [], prevBoard: cloneBoard(board), prevKoPoint: koPoint ? {...koPoint} : null });
+      setStatus('白棋 pass');
+    } else {
+      const captured = executeMove(move.row, move.col, WHITE);
+      consecutivePasses = 0;
+      setStatus(captured.length > 0 ? `白棋落子，提走 ${captured.length} 子` : '白棋落子');
     }
+
+    currentPlayer = BLACK;
+    aiThinking = false;
+    drawBoard();
+    updateUI();
+
+    if (consecutivePasses >= 2) endGame();
+  } catch (err) {
+    console.error('AI error:', err);
+    aiThinking = false;
+    updateUI();
+    setStatus('AI 出错，请尝试手动落子');
   }
-
-  if (valid.length === 0 || Math.random() < 0.05) {
-    // Pass
-    consecutivePasses++;
-    moveHistory.push({ row: -1, col: -1, color: WHITE, captures: [], prevBoard: cloneBoard(board), prevKoPoint: koPoint ? {...koPoint} : null });
-    setStatus('白棋 pass');
-  } else {
-    const move = valid[Math.floor(Math.random() * valid.length)];
-    const captured = executeMove(move.row, move.col, WHITE);
-    consecutivePasses = 0;
-    setStatus(captured.length > 0 ? `白棋落子，提走 ${captured.length} 子` : '白棋落子');
-  }
-
-  currentPlayer = BLACK;
-  aiThinking = false;
-  drawBoard();
-  updateUI();
-
-  if (consecutivePasses >= 2) endGame();
 }
-// NOTE: This mock AI is replaced by the full AI engine in Task 8
+
+// ===== Fallback MCTS Engine =====
+let mctsWorker = null;
+
+function initMCTSEngine() {
+  const workerCode = `
+    const BOARD_SIZE = 19;
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+
+    function isValidMove(board, row, col, color) {
+      if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) return false;
+      if (board[row][col] !== EMPTY) return false;
+
+      const prev = board.map(r => [...r]);
+      board[row][col] = color;
+
+      for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === (color === BLACK ? WHITE : BLACK)) {
+          const group = getGroup(board, nr, nc);
+          if (countLiberties(board, group) === 0) {
+            for (const [gr,gc] of group) board[gr][gc] = EMPTY;
+          }
+        }
+      }
+      const myGroup = getGroup(board, row, col);
+      const alive = countLiberties(board, myGroup) > 0;
+
+      for (let r = 0; r < BOARD_SIZE; r++)
+        for (let c = 0; c < BOARD_SIZE; c++)
+          board[r][c] = prev[r][c];
+      return alive;
+    }
+
+    function getGroup(board, row, col) {
+      const color = board[row][col];
+      if (color === EMPTY) return [];
+      const group = [];
+      const visited = new Set();
+      const stack = [[row, col]];
+      while (stack.length > 0) {
+        const [r,c] = stack.pop();
+        const key = r * BOARD_SIZE + c;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        group.push([r,c]);
+        for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE &&
+              board[nr][nc] === color && !visited.has(nr * BOARD_SIZE + nc)) {
+            stack.push([nr, nc]);
+          }
+        }
+      }
+      return group;
+    }
+
+    function countLiberties(board, group) {
+      const liberties = new Set();
+      for (const [r,c] of group) {
+        for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === EMPTY) {
+            liberties.add(nr * BOARD_SIZE + nc);
+          }
+        }
+      }
+      return liberties.size;
+    }
+
+    function randomPlayout(board, startColor) {
+      const b = board.map(r => [...r]);
+      let color = startColor;
+      let passes = 0;
+
+      for (let n = 0; n < 500 && passes < 2; n++) {
+        const moves = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            if (b[r][c] === EMPTY && isValidMove(b, r, c, color)) {
+              moves.push([r, c]);
+            }
+          }
+        }
+
+        if (moves.length === 0) {
+          passes++;
+        } else {
+          passes = 0;
+          const [mr, mc] = moves[Math.floor(Math.random() * moves.length)];
+          b[mr][mc] = color;
+          const opp = color === BLACK ? WHITE : BLACK;
+          for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+            const nr = mr + dr, nc = mc + dc;
+            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && b[nr][nc] === opp) {
+              const grp = getGroup(b, nr, nc);
+              if (countLiberties(b, grp) === 0) {
+                for (const [gr,gc] of grp) b[gr][gc] = EMPTY;
+              }
+            }
+          }
+        }
+        color = color === BLACK ? WHITE : BLACK;
+      }
+
+      let black = 0, white = 0;
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (b[r][c] === BLACK) black++;
+          else if (b[r][c] === WHITE) white++;
+        }
+      }
+      return black > white ? BLACK : WHITE;
+    }
+
+    self.onmessage = function(e) {
+      const { board, color, numSims } = e.data;
+      const moves = [];
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (board[r][c] === EMPTY && isValidMove(board, r, c, color)) {
+            moves.push([r, c]);
+          }
+        }
+      }
+
+      if (moves.length === 0) {
+        self.postMessage({ row: -1, col: -1 });
+        return;
+      }
+
+      const results = [];
+      const simsPerMove = Math.max(10, Math.floor(numSims / moves.length));
+
+      for (const [r, c] of moves) {
+        const b = board.map(row => [...row]);
+        b[r][c] = color;
+        let wins = 0;
+        for (let i = 0; i < simsPerMove; i++) {
+          if (randomPlayout(b, color === BLACK ? WHITE : BLACK) === color) wins++;
+        }
+        results.push({ row: r, col: c, wins, sims: simsPerMove });
+      }
+
+      results.sort((a, b) => (b.wins / b.sims) - (a.wins / a.sims));
+      self.postMessage({ row: results[0].row, col: results[0].col });
+    };
+  `;
+
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  mctsWorker = new Worker(URL.createObjectURL(blob));
+}
+
+function aiGetMoveMCTS() {
+  return new Promise((resolve) => {
+    mctsWorker.onmessage = function(e) {
+      resolve(e.data);
+    };
+    mctsWorker.postMessage({
+      board,
+      color: WHITE,
+      numSims: 8000
+    });
+  });
+}
 
 function getOpponent(color) {
   return color === BLACK ? WHITE : BLACK;
@@ -876,6 +1139,56 @@ function showTerritoryEstimate(result) {
   document.getElementById('scorePanel').style.display = 'block';
 }
 
+// Override estimateTerritory to try neural network first if available
+const originalEstimateTerritory = estimateTerritory;
+estimateTerritory = async function() {
+  if (!aiModel) {
+    originalEstimateTerritory();
+    return;
+  }
+
+  const myColor = BLACK;
+  const oppColor = WHITE;
+  const input = new Float32Array(3 * BOARD_SIZE * BOARD_SIZE);
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const idx = r * BOARD_SIZE + c;
+      input[idx] = board[r][c] === myColor ? 1 : 0;
+      input[BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === oppColor ? 1 : 0;
+      input[2 * BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === EMPTY ? 1 : 0;
+    }
+  }
+
+  try {
+    const tensor = tf.tensor4d(input, [1, BOARD_SIZE, BOARD_SIZE, 3]);
+    const output = aiModel.predict(tensor);
+    const data = output.dataSync();
+    const valueHead = data[data.length - 1];
+    tensor.dispose();
+    output.dispose();
+
+    const estimatedDiff = valueHead * 120;
+    const komi = 7.5;
+    const blackEst = (BOARD_SIZE * BOARD_SIZE + estimatedDiff) / 2;
+    const whiteEst = blackEst - estimatedDiff + komi;
+
+    showTerritoryEstimate({
+      blackScore: blackEst,
+      whiteScore: whiteEst,
+      blackTerritory: 0,
+      whiteTerritory: 0,
+      territory: Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(null))
+    });
+  } catch (err) {
+    console.warn('Neural territory estimation failed, using heuristic:', err.message);
+    originalEstimateTerritory();
+  }
+};
+
+// Auto-load AI model on page load
+loadAIModel();
+
 // ===== Click handler =====
 canvas.addEventListener('click', (e) => {
   if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
@@ -894,10 +1207,10 @@ document.getElementById('btnPass').addEventListener('click', handlePass);
 document.getElementById('btnResign').addEventListener('click', handleResign);
 document.getElementById('btnUndo').addEventListener('click', handleUndo);
 document.getElementById('btnNew').addEventListener('click', handleNewGame);
-document.getElementById('btnScore').addEventListener('click', () => {
+document.getElementById('btnScore').addEventListener('click', async () => {
   if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
   setStatus('分析中...');
-  estimateTerritory();
+  await estimateTerritory();
   setStatus('形势判断完成');
 });
 
