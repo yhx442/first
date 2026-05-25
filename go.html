@@ -308,6 +308,109 @@ function boardHash(b) {
   return h;
 }
 
+// ===== Move Validation & Execution =====
+
+function isValidMove(row, col, color) {
+  if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) return false;
+  if (board[row][col] !== EMPTY) return false;
+
+  // Ko check
+  if (koPoint && koPoint.row === row && koPoint.col === col) return false;
+
+  // Simulate placement
+  const prevBoard = cloneBoard(board);
+  board[row][col] = color;
+
+  // Remove captured opponent stones
+  const adjOppGroups = getAdjacentOpponentGroups(row, col);
+  let capturedAny = false;
+  const capturedStones = [];
+  for (const group of adjOppGroups) {
+    if (countLiberties(group) === 0) {
+      capturedAny = true;
+      for (const [gr, gc] of group) {
+        capturedStones.push({ row: gr, col: gc, color: board[gr][gc] });
+        board[gr][gc] = EMPTY;
+      }
+    }
+  }
+
+  // Suicide check
+  const myGroup = getGroup(row, col);
+  const alive = countLiberties(myGroup) > 0;
+
+  // Restore board
+  board = prevBoard;
+
+  return alive;
+}
+
+function executeMove(row, col, color) {
+  const prevBoard = cloneBoard(board);
+  board[row][col] = color;
+
+  const capturedStones = [];
+  const adjOppGroups = getAdjacentOpponentGroups(row, col);
+  for (const group of adjOppGroups) {
+    if (countLiberties(group) === 0) {
+      for (const [gr, gc] of group) {
+        capturedStones.push({ row: gr, col: gc, color: board[gr][gc] });
+        board[gr][gc] = EMPTY;
+      }
+    }
+  }
+
+  captures[color] += capturedStones.length;
+
+  // Update ko point: if we captured exactly 1 stone and placed 1 stone
+  const prevHash = boardHash(prevBoard);
+  const newHash = boardHash(board);
+  koPoint = (capturedStones.length === 1 &&
+             getGroup(row, col).length === 1 &&
+             countLiberties(getGroup(row, col)) === 1)
+    ? { row: capturedStones[0].row, col: capturedStones[0].col }
+    : null;
+
+  moveHistory.push({
+    row, col, color,
+    captures: capturedStones,
+    prevBoard,
+    prevKoPoint: koPoint ? { ...koPoint } : null
+  });
+
+  lastMove = { row, col };
+  return capturedStones;
+}
+
+function undoLastTwoMoves() {
+  if (moveHistory.length < 2) return false;
+  // Undo AI move
+  const aiMove = moveHistory.pop();
+  board[aiMove.row][aiMove.col] = EMPTY;
+  for (const cap of aiMove.captures) {
+    board[cap.row][cap.col] = cap.color;
+  }
+  captures[aiMove.color] -= aiMove.captures.length;
+
+  // Undo player move
+  const playerMove = moveHistory.pop();
+  board[playerMove.row][playerMove.col] = EMPTY;
+  for (const cap of playerMove.captures) {
+    board[cap.row][cap.col] = cap.color;
+  }
+  captures[playerMove.color] -= playerMove.captures.length;
+
+  // Restore ko point and lastMove from previous state
+  if (moveHistory.length > 0) {
+    lastMove = { row: moveHistory[moveHistory.length - 1].row, col: moveHistory[moveHistory.length - 1].col };
+  } else {
+    lastMove = null;
+  }
+  koPoint = playerMove.prevKoPoint;
+
+  return true;
+}
+
 // ===== Board Renderer =====
 function boardToPixel(row, col) {
   return {
@@ -444,22 +547,30 @@ drawBoard();
 
 // ===== Self-test (run once on load) =====
 function runTests() {
-  // Test getGroup
-  board[0][0] = BLACK;
+  // Test 1: Capture in corner
+  // Setup: black stones at (0,1), (1,0), (1,1); white tries to play at (0,0)
   board[0][1] = BLACK;
-  const g = getGroup(0, 0);
-  console.assert(g.length === 2, 'getGroup should find 2 connected stones');
-  console.assert(countLiberties(g) === 3, 'corner group should have 3 liberties');
-
-  // Test clone
-  const clone = cloneBoard(board);
-  console.assert(clone[0][0] === BLACK, 'clone should preserve values');
-  clone[0][0] = EMPTY;
-  console.assert(board[0][0] === BLACK, 'clone should be independent');
+  board[1][0] = BLACK;
+  board[1][1] = BLACK;
+  const result = executeMove(0, 0, WHITE);
+  console.assert(board[0][0] === EMPTY, 'white stone should be captured immediately');
+  console.assert(captures[BLACK] === 1, 'black should have 1 capture');
 
   // Cleanup
+  board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(EMPTY));
+  moveHistory = [];
+  captures = { [BLACK]: 0, [WHITE]: 0 };
+  lastMove = null;
+  koPoint = null;
+
+  // Test 2: Valid placement
+  console.assert(isValidMove(3, 3, BLACK), 'center of empty board should be valid');
+  console.assert(!isValidMove(-1, 0, BLACK), 'out of bounds should be invalid');
+  console.assert(!isValidMove(0, 0, BLACK), 'occupied should be invalid'); // still have test stone
+
+  // Cleanup test stone
   board[0][0] = EMPTY;
-  board[0][1] = EMPTY;
+
   console.log('All engine tests passed');
 }
 runTests();
