@@ -449,7 +449,7 @@ function runTests() {
   board[0][1] = BLACK;
   const g = getGroup(0, 0);
   console.assert(g.length === 2, 'getGroup should find 2 connected stones');
-  console.assert(countLiberties(g) === 2, 'corner group should have 2 liberties');
+  console.assert(countLiberties(g) === 3, 'corner group should have 3 liberties');
 
   // Test clone
   const clone = cloneBoard(board);
