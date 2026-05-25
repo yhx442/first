@@ -363,8 +363,7 @@ function executeMove(row, col, color) {
   captures[color] += capturedStones.length;
 
   // Update ko point: if we captured exactly 1 stone and placed 1 stone
-  const prevHash = boardHash(prevBoard);
-  const newHash = boardHash(board);
+  const oldKoPoint = koPoint ? { ...koPoint } : null;
   koPoint = (capturedStones.length === 1 &&
              getGroup(row, col).length === 1 &&
              countLiberties(getGroup(row, col)) === 1)
@@ -375,7 +374,7 @@ function executeMove(row, col, color) {
     row, col, color,
     captures: capturedStones,
     prevBoard,
-    prevKoPoint: koPoint ? { ...koPoint } : null
+    prevKoPoint: oldKoPoint
   });
 
   lastMove = { row, col };
@@ -548,12 +547,11 @@ drawBoard();
 // ===== Self-test (run once on load) =====
 function runTests() {
   // Test 1: Capture in corner
-  // Place white at (0,0), surround with black at (0,1) and (1,0), leaving 1 liberty at (1,1)
-  board[0][0] = WHITE;
-  board[0][1] = BLACK;
-  board[1][0] = BLACK;
-  // Black plays at (1,1) — captures white at (0,0)
-  const result = executeMove(1, 1, BLACK);
+  // Place white at (0,0) with executeMove, then surround
+  executeMove(0, 0, WHITE);
+  executeMove(0, 1, BLACK);
+  // Black plays at (1,0) — captures white at (0,0) since (1,0) is adjacent
+  const result = executeMove(1, 0, BLACK);
   console.assert(board[0][0] === EMPTY, 'white stone should be captured');
   console.assert(captures[BLACK] === 1, 'black should have 1 capture');
   console.assert(result.length === 1, 'should return captured stones');
