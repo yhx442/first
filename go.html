@@ -600,10 +600,101 @@ function resetGame() {
   koPoint = null;
 }
 
+function calculateTerritory() {
+  const territory = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(null));
+  const visited = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(false));
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] !== EMPTY || visited[r][c]) continue;
+
+      const region = [];
+      const borders = new Set();
+      const stack = [[r, c]];
+
+      while (stack.length > 0) {
+        const [cr, cc] = stack.pop();
+        if (visited[cr][cc]) continue;
+        visited[cr][cc] = true;
+        region.push([cr, cc]);
+
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr = cr + dr, nc = cc + dc;
+          if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) continue;
+          if (board[nr][nc] === EMPTY && !visited[nr][nc]) {
+            stack.push([nr, nc]);
+          } else if (board[nr][nc] !== EMPTY) {
+            borders.add(board[nr][nc]);
+          }
+        }
+      }
+
+      if (borders.size === 1) {
+        const owner = borders.values().next().value;
+        for (const [pr, pc] of region) {
+          territory[pr][pc] = owner;
+        }
+      }
+    }
+  }
+
+  let blackTerritory = 0, whiteTerritory = 0;
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (territory[r][c] === BLACK) blackTerritory++;
+      else if (territory[r][c] === WHITE) whiteTerritory++;
+    }
+  }
+
+  let blackStones = 0, whiteStones = 0;
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === BLACK) blackStones++;
+      else if (board[r][c] === WHITE) whiteStones++;
+    }
+  }
+
+  const blackScore = blackTerritory + blackStones + captures[BLACK];
+  const whiteScore = whiteTerritory + whiteStones + captures[WHITE] + 7.5; // komi
+
+  return { blackTerritory, whiteTerritory, blackScore, whiteScore, territory };
+}
+
 function endGame() {
   gameState = 'SCORING';
+  const result = calculateTerritory();
+
+  drawBoard();
+  // Shade territory
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (result.territory[r][c]) {
+        const { x, y } = boardToPixel(r, c);
+        ctx.fillStyle = result.territory[r][c] === BLACK
+          ? 'rgba(0,0,0,0.15)'
+          : 'rgba(255,255,255,0.2)';
+        ctx.fillRect(x - cellSize * 0.4, y - cellSize * 0.4,
+          cellSize * 0.8, cellSize * 0.8);
+      }
+    }
+  }
+
+  const diff = result.blackScore - result.whiteScore;
+  const winner = diff > 0 ? '黑棋' : '白棋';
+  const margin = Math.abs(diff).toFixed(1);
+
+  document.getElementById('scoreContent').innerHTML = `
+    <div class="score-row"><span>黑棋</span><span>${result.blackScore.toFixed(1)} 子</span></div>
+    <div class="score-row"><span>白棋</span><span>${result.whiteScore.toFixed(1)} 子</span></div>
+    <div class="score-row" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.15)">
+      <span>贴目</span><span>7.5 目</span>
+    </div>
+    <div class="winner">${winner}胜 ${margin} 子</div>
+  `;
+  document.getElementById('scorePanel').style.display = 'block';
+
   updateUI();
-  setStatus('对局结束');
+  setStatus(`对局结束 — ${winner}胜 ${margin} 子`);
 }
 
 // ===== Game Flow =====
@@ -766,6 +857,25 @@ function setStatus(msg) {
   document.getElementById('statusBar').textContent = msg;
 }
 
+// Territory estimation using flood-fill heuristic
+function estimateTerritory() {
+  const result = calculateTerritory();
+  showTerritoryEstimate(result);
+}
+
+function showTerritoryEstimate(result) {
+  const diff = result.blackScore - result.whiteScore;
+  const winner = diff > 0 ? '黑棋' : '白棋';
+  const margin = Math.abs(diff).toFixed(1);
+
+  document.getElementById('scoreContent').innerHTML = `
+    <div class="score-row"><span>黑棋估算</span><span>${result.blackScore.toFixed(1)} 子</span></div>
+    <div class="score-row"><span>白棋估算</span><span>${result.whiteScore.toFixed(1)} 子</span></div>
+    <div class="winner">${winner}优势约 ${margin} 子</div>
+  `;
+  document.getElementById('scorePanel').style.display = 'block';
+}
+
 // ===== Click handler =====
 canvas.addEventListener('click', (e) => {
   if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
@@ -784,6 +894,12 @@ document.getElementById('btnPass').addEventListener('click', handlePass);
 document.getElementById('btnResign').addEventListener('click', handleResign);
 document.getElementById('btnUndo').addEventListener('click', handleUndo);
 document.getElementById('btnNew').addEventListener('click', handleNewGame);
+document.getElementById('btnScore').addEventListener('click', () => {
+  if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
+  setStatus('分析中...');
+  estimateTerritory();
+  setStatus('形势判断完成');
+});
 
 // Initial UI update
 updateUI();
