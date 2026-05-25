@@ -698,6 +698,131 @@ function endGame() {
   setStatus(`对局结束 — ${winner}胜 ${margin} 子`);
 }
 
+// ===== Joseki Reference =====
+const JOSEKI_DATA = {
+  '星位 (4-4)': [
+    { name: '小飞挂角 · 一间低夹', sequence: [[3,3],[3,16],[5,15],[2,15],[3,14],[4,14],[5,14],[2,16],[2,14]] },
+    { name: '小飞挂角 · 二间高夹', sequence: [[3,3],[3,16],[6,15],[2,16],[5,16],[2,17],[5,13]] },
+    { name: '小飞挂角 · 靠压', sequence: [[3,3],[3,16],[2,15],[2,16],[1,15],[4,15],[0,15],[3,14],[2,14],[4,14]] },
+    { name: '小飞挂角 · 尖顶', sequence: [[3,3],[3,16],[2,15],[4,16],[3,15],[3,14],[4,14],[2,14],[5,14]] },
+  ],
+  '小目 (3-4)': [
+    { name: '小飞挂 · 小尖', sequence: [[2,3],[2,5],[3,5],[4,4],[1,4],[3,6],[1,3],[1,5]] },
+    { name: '小飞挂 · 一间夹', sequence: [[2,3],[2,5],[2,6],[3,5],[1,6],[3,6],[1,4],[2,4]] },
+    { name: '小飞挂 · 靠退', sequence: [[2,3],[2,5],[3,5],[3,6],[2,6],[4,5],[1,5],[2,4],[3,4]] },
+    { name: '高挂 · 托退', sequence: [[2,3],[3,5],[4,5],[3,4],[5,4],[4,6],[4,4],[3,3],[5,3],[6,4]] },
+  ],
+  '三三 (3-3)': [
+    { name: '肩冲定式', sequence: [[2,2],[4,2],[3,1],[3,3],[4,1],[2,4],[4,3],[5,3],[2,3],[1,3]] },
+    { name: '小飞挂', sequence: [[2,2],[2,4],[3,4],[1,3],[3,3],[4,3],[2,3],[1,2]] },
+  ],
+  '高目 (4-5)': [
+    { name: '小目挂 · 托角', sequence: [[3,4],[3,2],[4,2],[2,2],[4,1],[4,3],[2,3],[2,1]] },
+  ],
+  '目外 (3-5)': [
+    { name: '小目挂 · 大斜', sequence: [[2,4],[2,2],[1,3],[3,3],[1,2],[3,2],[2,1],[4,2]] },
+  ],
+};
+
+let activeJosekiCat = null;
+
+function buildJosekiUI() {
+  const container = document.getElementById('josekiList');
+  container.innerHTML = '';
+
+  for (const [category, variations] of Object.entries(JOSEKI_DATA)) {
+    const catDiv = document.createElement('div');
+    catDiv.className = 'joseki-cat';
+    catDiv.textContent = category;
+    catDiv.addEventListener('click', () => {
+      if (activeJosekiCat === category) {
+        activeJosekiCat = null;
+        buildJosekiUI();
+        return;
+      }
+      activeJosekiCat = category;
+      buildJosekiUI();
+    });
+
+    container.appendChild(catDiv);
+
+    if (activeJosekiCat === category) {
+      catDiv.classList.add('active');
+      for (const variation of variations) {
+        const varDiv = document.createElement('div');
+        varDiv.className = 'joseki-var';
+        varDiv.innerHTML = `<p style="font-size:12px;margin-bottom:6px;opacity:0.8">${variation.name}</p>`;
+
+        const miniCanvas = document.createElement('canvas');
+        miniCanvas.width = 200;
+        miniCanvas.height = 200;
+        varDiv.appendChild(miniCanvas);
+        drawJosekiDiagram(miniCanvas, variation.sequence);
+        container.appendChild(varDiv);
+      }
+    }
+  }
+}
+
+function drawJosekiDiagram(canvas, sequence) {
+  const ctx = canvas.getContext('2d');
+  const size = 19;
+  const cs = Math.floor(canvas.width / (size + 1));
+  const pad = cs;
+
+  ctx.fillStyle = '#DCB468';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = '#8B7355';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < size; i++) {
+    ctx.beginPath();
+    ctx.moveTo(pad, pad + i * cs);
+    ctx.lineTo(pad + (size - 1) * cs, pad + i * cs);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pad + i * cs, pad);
+    ctx.lineTo(pad + i * cs, pad + (size - 1) * cs);
+    ctx.stroke();
+  }
+
+  let minR = 19, maxR = 0, minC = 19, maxC = 0;
+  for (const [r, c] of sequence) {
+    minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+    minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+  }
+
+  for (let i = 0; i < sequence.length; i++) {
+    const [r, c] = sequence[i];
+    const x = pad + c * cs;
+    const y = pad + r * cs;
+    const color = i % 2 === 0 ? BLACK : WHITE;
+    const rad = cs * 0.42;
+
+    const grad = ctx.createRadialGradient(x - rad * 0.3, y - rad * 0.3, rad * 0.1, x, y, rad);
+    if (color === BLACK) {
+      grad.addColorStop(0, '#555');
+      grad.addColorStop(1, '#111');
+    } else {
+      grad.addColorStop(0, '#fff');
+      grad.addColorStop(1, '#c8c8c8');
+    }
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = color === BLACK ? '#fff' : '#000';
+    ctx.font = `${Math.floor(cs * 0.4)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, x, y);
+  }
+}
+
+// Initialize joseki UI
+buildJosekiUI();
+
 // ===== Game Flow =====
 let consecutivePasses = 0;
 let aiThinking = false;
@@ -999,7 +1124,7 @@ function aiGetMoveMCTS() {
     mctsWorker.postMessage({
       board,
       color: WHITE,
-      numSims: 8000
+      numSims: 12000
     });
   });
 }
@@ -1200,6 +1325,29 @@ canvas.addEventListener('click', (e) => {
   const pos = pixelToBoard(px, py);
   if (!pos) return;
   handlePlayerMove(pos.row, pos.col);
+});
+
+// Touch support for mobile
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const touch = e.touches[0];
+  const px = (touch.clientX - rect.left) * scaleX;
+  const py = (touch.clientY - rect.top) * scaleY;
+  const pos = pixelToBoard(px, py);
+  if (!pos) return;
+  handlePlayerMove(pos.row, pos.col);
+}, { passive: false });
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'p' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); handlePass(); }
+  if (e.key === 'u' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); handleUndo(); }
+  if (e.key === 'n' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); handleNewGame(); }
 });
 
 // ===== Button bindings =====
