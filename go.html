@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>围棋 — 业余一段</title>
+<style>
+  :root {
+    --bg: #4A3728;
+    --board: #DCB468;
+    --line: #5a4a2a;
+    --text: #E8D5B7;
+    --accent: #C9A96E;
+    --panel-bg: #3C2A1C;
+    --btn-bg: #5C3D2E;
+    --btn-hover: #6D4E3F;
+    --btn-disabled: #3A2A1E;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Serif SC", "SimSun", "STSong", serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+  }
+
+  .top-bar {
+    width: 100%; max-width: 1000px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px;
+    font-size: 15px;
+  }
+  .top-bar .turn-indicator { font-size: 18px; font-weight: bold; }
+  .top-bar .captures { font-size: 14px; opacity: 0.85; }
+  .black-stone-mini { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 5px 5px, #555, #111); vertical-align: middle; margin-right: 4px; }
+  .white-stone-mini { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 5px 5px, #fff, #ccc); vertical-align: middle; margin-right: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+
+  .main-area {
+    display: flex; gap: 20px; width: 100%; max-width: 1000px;
+    padding: 0 20px 20px; flex: 1;
+  }
+
+  .board-container {
+    flex: 0 0 auto;
+    background: #3A1F0D;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.05);
+  }
+  canvas { display: block; cursor: pointer; border-radius: 4px; }
+
+  .sidebar {
+    flex: 0 0 240px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .panel {
+    background: var(--panel-bg);
+    border-radius: 8px; padding: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .panel h3 {
+    font-size: 14px; margin-bottom: 10px;
+    color: var(--accent); letter-spacing: 2px;
+  }
+
+  .btn {
+    display: block; width: 100%; padding: 10px;
+    margin-bottom: 8px;
+    background: var(--btn-bg);
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    font-size: 14px; font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--btn-hover); }
+  .btn:disabled { background: var(--btn-disabled); color: #666; cursor: not-allowed; }
+  .btn:last-child { margin-bottom: 0; }
+
+  .joseki-cat {
+    background: var(--btn-bg);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px; padding: 8px 10px;
+    margin-bottom: 6px; cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s;
+  }
+  .joseki-cat:hover { background: var(--btn-hover); }
+  .joseki-cat.active { border-color: var(--accent); }
+  .joseki-var {
+    background: rgba(0,0,0,0.2);
+    border-radius: 4px; padding: 8px; margin-top: 4px;
+  }
+  .joseki-var canvas { width: 100%; height: auto; cursor: default; }
+
+  .score-panel {
+    font-size: 13px; line-height: 1.8;
+  }
+  .score-panel .score-row { display: flex; justify-content: space-between; }
+  .score-panel .winner { font-weight: bold; color: var(--accent); margin-top: 6px; }
+
+  .bottom-bar {
+    width: 100%; max-width: 1000px;
+    padding: 0 20px 16px;
+    font-size: 13px; text-align: center; opacity: 0.7;
+  }
+
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .loading-overlay .progress-bar {
+    width: 300px; height: 8px;
+    background: #333; border-radius: 4px; overflow: hidden;
+    margin-top: 16px;
+  }
+  .loading-overlay .progress-fill {
+    height: 100%; background: var(--accent);
+    border-radius: 4px; transition: width 0.3s;
+  }
+
+  .spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 800px) {
+    .main-area { flex-direction: column; align-items: center; }
+    .sidebar { flex: 0 0 auto; width: 100%; max-width: 400px; flex-direction: row; flex-wrap: wrap; }
+    .sidebar .panel { flex: 1; min-width: 140px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <p>加载 KataGo 模型中...</p>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <p style="font-size:12px;opacity:0.6;margin-top:8px" id="loadingStatus"></p>
+</div>
+
+<div class="top-bar">
+  <span class="turn-indicator" id="turnIndicator">🔸 您的回合（黑）</span>
+  <span class="captures">
+    <span class="black-stone-mini"></span> 提子: <span id="capturesB">0</span>
+    &nbsp;&nbsp;
+    <span class="white-stone-mini"></span> 提子: <span id="capturesW">0</span>
+    &nbsp;&nbsp; 手数: <span id="moveCount">0</span>
+  </span>
+</div>
+
+<div class="main-area">
+  <div class="board-container">
+    <canvas id="board"></canvas>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <h3>对局控制</h3>
+      <button class="btn" id="btnPass">停一手 (Pass)</button>
+      <button class="btn" id="btnResign">认输</button>
+      <button class="btn" id="btnUndo">悔棋</button>
+      <button class="btn" id="btnScore">形势判断</button>
+      <button class="btn" id="btnNew" style="margin-top:12px;border-color:var(--accent)">新局</button>
+    </div>
+
+    <div class="panel">
+      <h3>定式参考</h3>
+      <div id="josekiList"></div>
+    </div>
+
+    <div class="panel score-panel" id="scorePanel" style="display:none">
+      <h3>形势判断</h3>
+      <div id="scoreContent"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-bar" id="statusBar">点击棋盘落子</div>
+
+<script>
+// All JavaScript goes here (populated in subsequent tasks)
+</script>
+
+</body>
+</html>
