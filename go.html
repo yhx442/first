@@ -835,48 +835,30 @@ async function loadAIModel() {
   const statusEl = document.getElementById('loadingStatus');
   const progressEl = document.getElementById('progressFill');
 
-  statusEl.textContent = '下载 KataGo 模型中...';
-  progressEl.style.width = '20%';
+  statusEl.textContent = '加载 KataGo 模型中...';
+  progressEl.style.width = '10%';
 
   try {
-    // Try multiple possible model paths
-    const MODEL_URLS = [
-      'https://maksimkorzh.github.io/kata-model-js/model.json',
-      'https://maksimkorzh.github.io/kata-model-js/model/model.json',
-    ];
-    let modelLoaded = false;
+    const MODEL_URL = './kata-model-js-main/model/b10c128-s1141046784-d204142634/model.json';
 
-    for (const url of MODEL_URLS) {
-      try {
-        statusEl.textContent = `尝试加载: ${url.split('/').pop()}...`;
-        aiModel = await tf.loadGraphModel(url, {
-          onProgress: (fraction) => {
-            const pct = Math.round(20 + fraction * 70);
-            progressEl.style.width = pct + '%';
-            if (fraction < 1) {
-              statusEl.textContent = `下载模型中... ${Math.round(fraction * 100)}%`;
-            }
-          }
-        });
-        modelLoaded = true;
-        console.log('KataGo model loaded from:', url);
-        break;
-      } catch (e) {
-        console.warn('Failed to load from:', url, e.message);
+    aiModel = await tf.loadGraphModel(MODEL_URL, {
+      onProgress: (fraction) => {
+        const pct = Math.round(10 + fraction * 80);
+        progressEl.style.width = pct + '%';
+        if (fraction < 1) {
+          statusEl.textContent = `加载模型中... ${Math.round(fraction * 100)}%`;
+        }
       }
-    }
+    });
 
-    if (modelLoaded) {
-      progressEl.style.width = '100%';
-      statusEl.textContent = 'KataGo 模型加载完成';
-      aiReady = true;
-      setTimeout(() => {
-        document.getElementById('loadingOverlay').style.display = 'none';
-      }, 500);
-      return;
-    }
+    progressEl.style.width = '100%';
+    statusEl.textContent = 'KataGo 模型加载完成';
+    aiReady = true;
+    console.log('KataGo model loaded from local path');
 
-    throw new Error('All model URLs failed');
+    setTimeout(() => {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }, 500);
 
   } catch (err) {
     console.warn('Failed to load KataGo model, using MCTS fallback:', err.message);
@@ -899,55 +881,122 @@ async function aiGetMove() {
   }
 }
 
-async function aiGetMoveNeural() {
-  const myColor = WHITE;
-  const oppColor = BLACK;
-  const input = new Float32Array(3 * BOARD_SIZE * BOARD_SIZE);
+function buildKataGoInput(myColor, oppColor) {
+  const inputChannels = 22;
+  const globalChannels = 19;
+  const binInputs = new Float32Array(BOARD_SIZE * BOARD_SIZE * inputChannels);
+  const globalInputs = new Float32Array(globalChannels);
 
+  // Pre-compute liberties per stone (cached by group)
+  const libertyCache = new Map();
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
-      const idx = r * BOARD_SIZE + c;
-      input[idx] = board[r][c] === myColor ? 1 : 0;
-      input[BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === oppColor ? 1 : 0;
-      input[2 * BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === EMPTY ? 1 : 0;
-    }
-  }
-
-  const tensor = tf.tensor4d(input, [1, BOARD_SIZE, BOARD_SIZE, 3]);
-  const output = aiModel.predict(tensor);
-  const policy = Array.from(output.dataSync());
-  tensor.dispose();
-  output.dispose();
-
-  const candidates = [];
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const idx = r * BOARD_SIZE + c;
-      if (isValidMove(r, c, WHITE)) {
-        candidates.push({ row: r, col: c, prob: policy[idx] });
+      if (board[r][c] === EMPTY) continue;
+      const key = r * BOARD_SIZE + c;
+      if (libertyCache.has(key)) continue;
+      const group = getGroup(r, c);
+      const libs = countLiberties(group);
+      for (const [gr, gc] of group) {
+        libertyCache.set(gr * BOARD_SIZE + gc, libs);
       }
     }
   }
-  candidates.push({ row: -1, col: -1, prob: policy[361] });
 
-  candidates.sort((a, b) => b.prob - a.prob);
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const idx = r * BOARD_SIZE + c;
+      const base = inputChannels * idx;
 
-  const TOP_K = 15;
-  const TEMPERATURE = 1.2;
-  const topK = candidates.slice(0, TOP_K);
+      // Channel 0: all 1.0
+      binInputs[base + 0] = 1.0;
 
-  const maxProb = Math.max(...topK.map(m => m.prob));
-  const expProbs = topK.map(m => Math.exp((m.prob - maxProb) / TEMPERATURE));
-  const sumExp = expProbs.reduce((a, b) => a + b, 0);
-  const probs = expProbs.map(e => e / sumExp);
+      // Channel 1: my stones, Channel 2: opponent stones
+      if (board[r][c] === myColor) binInputs[base + 1] = 1.0;
+      if (board[r][c] === oppColor) binInputs[base + 2] = 1.0;
 
-  const rand = Math.random();
-  let cum = 0;
-  for (let i = 0; i < topK.length; i++) {
-    cum += probs[i];
-    if (rand <= cum) return topK[i];
+      // Channels 3-5: liberty counts
+      if (board[r][c] !== EMPTY) {
+        const libs = libertyCache.get(idx) || 0;
+        if (libs === 1) binInputs[base + 3] = 1.0;
+        else if (libs === 2) binInputs[base + 4] = 1.0;
+        else if (libs === 3) binInputs[base + 5] = 1.0;
+      }
+
+      // Channel 6: ko point
+      if (koPoint && koPoint.row === r && koPoint.col === c) {
+        binInputs[base + 6] = 1.0;
+      }
+    }
   }
-  return topK[0];
+
+  // Channels 9-13: last 5 move positions
+  for (let i = 0; i < 5; i++) {
+    const mi = moveHistory.length - 1 - i;
+    if (mi >= 0) {
+      const move = moveHistory[mi];
+      if (move.row >= 0) {
+        const base = inputChannels * (move.row * BOARD_SIZE + move.col);
+        binInputs[base + 9 + i] = 1.0;
+      } else {
+        globalInputs[i] = 1.0;
+      }
+    }
+  }
+
+  // Global: komi / 20
+  globalInputs[5] = (myColor === WHITE ? 7.5 : -7.5) / 20.0;
+
+  return { binInputs, globalInputs, inputChannels, globalChannels };
+}
+
+async function aiGetMoveNeural() {
+  const { binInputs, globalInputs, inputChannels, globalChannels } = buildKataGoInput(WHITE, BLACK);
+
+  const results = await aiModel.executeAsync({
+    'swa_model/bin_inputs': tf.tensor(binInputs, [1, BOARD_SIZE * BOARD_SIZE, inputChannels], 'float32'),
+    'swa_model/global_inputs': tf.tensor(globalInputs, [1, globalChannels], 'float32')
+  });
+
+  // results[1] = policy head (move probabilities)
+  const policy = await results[1].reshape([-1]).array();
+  for (const t of results) t.dispose();
+
+  // Build candidate list: sorted by model's policy
+  const sorted = policy
+    .map((prob, idx) => ({ idx, prob }))
+    .sort((a, b) => b.prob - a.prob);
+
+  const topN = sorted.slice(0, 20);
+
+  // Try top moves in order; add randomness early game
+  for (let i = 0; i < topN.length; i++) {
+    let pick = i;
+    if (moveHistory.length < 10) {
+      pick = Math.floor(Math.random() * Math.min(5, topN.length));
+    }
+
+    const bestIdx = topN[pick].idx;
+    if (bestIdx >= BOARD_SIZE * BOARD_SIZE) {
+      return { row: -1, col: -1 }; // pass
+    }
+
+    const row = Math.floor(bestIdx / BOARD_SIZE);
+    const col = bestIdx % BOARD_SIZE;
+
+    if (isValidMove(row, col, WHITE)) {
+      return { row, col };
+    }
+  }
+
+  // If no valid move found in top picks, pass
+  const allValid = [];
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (isValidMove(r, c, WHITE)) allValid.push({ row: r, col: c, prob: policy[r * BOARD_SIZE + c] });
+    }
+  }
+  allValid.sort((a, b) => b.prob - a.prob);
+  return allValid.length > 0 ? allValid[0] : { row: -1, col: -1 };
 }
 
 async function aiMakeMove() {
@@ -1319,41 +1368,32 @@ estimateTerritory = async function() {
     return;
   }
 
-  const myColor = BLACK;
-  const oppColor = WHITE;
-  const input = new Float32Array(3 * BOARD_SIZE * BOARD_SIZE);
-
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const idx = r * BOARD_SIZE + c;
-      input[idx] = board[r][c] === myColor ? 1 : 0;
-      input[BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === oppColor ? 1 : 0;
-      input[2 * BOARD_SIZE * BOARD_SIZE + idx] = board[r][c] === EMPTY ? 1 : 0;
-    }
-  }
-
   try {
-    const tensor = tf.tensor4d(input, [1, BOARD_SIZE, BOARD_SIZE, 3]);
-    const output = aiModel.predict(tensor);
-    const data = output.dataSync();
-    const valueHead = data[data.length - 1];
-    tensor.dispose();
-    output.dispose();
+    const { binInputs, globalInputs, inputChannels, globalChannels } = buildKataGoInput(BLACK, WHITE);
 
-    const estimatedDiff = valueHead * 120;
+    const results = await aiModel.executeAsync({
+      'swa_model/bin_inputs': tf.tensor(binInputs, [1, BOARD_SIZE * BOARD_SIZE, inputChannels], 'float32'),
+      'swa_model/global_inputs': tf.tensor(globalInputs, [1, globalChannels], 'float32')
+    });
+
+    // results[2] = scores head; index 2 is score lead from current player perspective
+    const scoresData = results[2].dataSync();
+    const scoreLead = scoresData[2] * 20;
+    for (const t of results) t.dispose();
+
     const komi = 7.5;
-    const blackEst = (BOARD_SIZE * BOARD_SIZE + estimatedDiff) / 2;
-    const whiteEst = blackEst - estimatedDiff + komi;
+    const blackEst = (BOARD_SIZE * BOARD_SIZE + scoreLead) / 2 + komi / 2;
+    const whiteEst = blackEst - scoreLead;
 
     showTerritoryEstimate({
-      blackScore: blackEst,
-      whiteScore: whiteEst,
+      blackScore: Math.max(0, blackEst),
+      whiteScore: Math.max(0, whiteEst),
       blackTerritory: 0,
       whiteTerritory: 0,
       territory: Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(null))
     });
   } catch (err) {
-    console.warn('Neural territory estimation failed, using heuristic:', err.message);
+    console.warn('Neural territory estimation failed:', err.message);
     originalEstimateTerritory();
   }
 };
