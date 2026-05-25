@@ -195,7 +195,171 @@
 <div class="bottom-bar" id="statusBar">点击棋盘落子</div>
 
 <script>
-// All JavaScript goes here (populated in subsequent tasks)
+// ===== Constants =====
+const BOARD_SIZE = 19;
+const EMPTY = 0, BLACK = 1, WHITE = 2;
+const STAR_POINTS_19 = [
+  [3,3],[3,9],[3,15],[9,3],[9,9],[9,15],[15,3],[15,9],[15,15]
+];
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+
+let cellSize, padding, boardPixelSize;
+
+function calcSizes() {
+  const maxSize = Math.min(window.innerWidth - 300, window.innerHeight - 180, 660);
+  cellSize = Math.floor(maxSize / (BOARD_SIZE + 1));
+  padding = cellSize;
+  boardPixelSize = cellSize * (BOARD_SIZE - 1);
+  canvas.width = boardPixelSize + padding * 2;
+  canvas.height = boardPixelSize + padding * 2;
+}
+calcSizes();
+
+// ===== Board State =====
+// 19x19 grid: 0=empty, 1=black, 2=white
+let board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(EMPTY));
+let moveHistory = [];       // [{row, col, color, captures: [], prevBoard: snapshot}]
+let currentPlayer = BLACK;
+let gameState = 'IDLE';     // IDLE | PLAYING | SCORING
+let captures = { [BLACK]: 0, [WHITE]: 0 };
+let lastMove = null;        // {row, col} or null
+let koPoint = null;         // {row, col} or null
+
+// ===== Board Renderer =====
+function boardToPixel(row, col) {
+  return {
+    x: padding + col * cellSize,
+    y: padding + row * cellSize
+  };
+}
+
+function pixelToBoard(px, py) {
+  const col = Math.round((px - padding) / cellSize);
+  const row = Math.round((py - padding) / cellSize);
+  if (col < 0 || col >= BOARD_SIZE || row < 0 || row >= BOARD_SIZE) return null;
+  // Check snap distance
+  const { x, y } = boardToPixel(row, col);
+  const dist = Math.sqrt((px - x) ** 2 + (py - y) ** 2);
+  if (dist > cellSize * 0.45) return null;
+  return { row, col };
+}
+
+function drawBoard() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Board background
+  ctx.fillStyle = '#DCB468';
+  ctx.fillRect(padding - cellSize * 0.5, padding - cellSize * 0.5,
+    boardPixelSize + cellSize, boardPixelSize + cellSize);
+
+  // Grid lines
+  ctx.strokeStyle = '#4A3728';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    const { x: x1, y: y1 } = boardToPixel(i, 0);
+    const { x: x2, y: y2 } = boardToPixel(i, BOARD_SIZE - 1);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    const { x: x3, y: y3 } = boardToPixel(0, i);
+    const { x: x4, y: y4 } = boardToPixel(BOARD_SIZE - 1, i);
+    ctx.beginPath();
+    ctx.moveTo(x3, y3);
+    ctx.lineTo(x4, y4);
+    ctx.stroke();
+  }
+
+  // Star points
+  for (const [r, c] of STAR_POINTS_19) {
+    const { x, y } = boardToPixel(r, c);
+    ctx.fillStyle = '#4A3728';
+    ctx.beginPath();
+    ctx.arc(x, y, cellSize * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Stones
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === EMPTY) continue;
+      const { x, y } = boardToPixel(r, c);
+      drawStone(x, y, board[r][c]);
+    }
+  }
+
+  // Last move marker
+  if (lastMove) {
+    const { x, y } = boardToPixel(lastMove.row, lastMove.col);
+    ctx.fillStyle = board[lastMove.row][lastMove.col] === BLACK ? '#fff' : '#000';
+    ctx.beginPath();
+    ctx.arc(x, y, cellSize * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawStone(x, y, color) {
+  const r = cellSize * 0.44;
+  const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+
+  if (color === BLACK) {
+    grad.addColorStop(0, '#555');
+    grad.addColorStop(1, '#111');
+  } else {
+    grad.addColorStop(0, '#fff');
+    grad.addColorStop(0.6, '#f0f0f0');
+    grad.addColorStop(1, '#c8c8c8');
+  }
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (color === WHITE) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+}
+
+// Hover preview
+let hoverPos = null;
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const px = (e.clientX - rect.left) * scaleX;
+  const py = (e.clientY - rect.top) * scaleY;
+  hoverPos = pixelToBoard(px, py);
+  if (hoverPos && (board[hoverPos.row][hoverPos.col] !== EMPTY || gameState !== 'PLAYING' || currentPlayer !== BLACK)) {
+    hoverPos = null;
+  }
+  drawBoard();
+  if (hoverPos) {
+    const { x, y } = boardToPixel(hoverPos.row, hoverPos.col);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.arc(x, y, cellSize * 0.44, 0, Math.PI * 2);
+    ctx.fill();
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoverPos = null;
+  drawBoard();
+});
+
+window.addEventListener('resize', () => {
+  calcSizes();
+  drawBoard();
+});
+
+// Initial render
+drawBoard();
 </script>
 
 </body>
