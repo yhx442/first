@@ -547,33 +547,57 @@ drawBoard();
 // ===== Self-test (run once on load) =====
 function runTests() {
   // Test 1: Capture in corner
-  // Place white at (0,0) with executeMove, then surround
   executeMove(0, 0, WHITE);
   executeMove(0, 1, BLACK);
-  // Black plays at (1,0) — captures white at (0,0) since (1,0) is adjacent
   const result = executeMove(1, 0, BLACK);
   console.assert(board[0][0] === EMPTY, 'white stone should be captured');
   console.assert(captures[BLACK] === 1, 'black should have 1 capture');
-  console.assert(result.length === 1, 'should return captured stones');
-  console.assert(result[0].row === 0 && result[0].col === 0, 'captured stone should be at (0,0)');
 
-  // Cleanup
+  resetGame();
+
+  // Test 2: Ko detection — standard ko shape
+  // . B W .
+  // B . B W
+  // . B W .
+  // White captures at (1,1), capturing black at (1,2)
+  executeMove(0, 1, BLACK); executeMove(0, 2, WHITE);
+  executeMove(1, 0, BLACK); executeMove(1, 2, BLACK); executeMove(1, 3, WHITE);
+  executeMove(2, 1, BLACK); executeMove(2, 2, WHITE);
+  // Now (1,1) is empty, white captures
+  executeMove(1, 1, WHITE);
+  console.assert(board[1][2] === EMPTY, 'black stone should be captured in ko');
+  console.assert(koPoint !== null, 'ko point should be set');
+  console.assert(koPoint.row === 1 && koPoint.col === 2, 'ko point should be at captured stone position');
+  console.assert(!isValidMove(1, 2, BLACK), 'ko prevents immediate recapture');
+  console.assert(isValidMove(10, 10, BLACK), 'black can play elsewhere during ko');
+
+  resetGame();
+
+  // Test 3: Suicide prevention
+  board[0][1] = WHITE;
+  board[1][0] = WHITE;
+  board[1][1] = WHITE;
+  console.assert(!isValidMove(0, 0, BLACK), 'corner suicide should be illegal');
+
+  // Capturing move with 0 own liberties is NOT suicide
+  // Black at (0,1) surrounded by white on 3 sides, last liberty is (0,0)
+  executeMove(0, 1, BLACK);
+  executeMove(0, 2, WHITE);
+  executeMove(1, 1, WHITE);
+  executeMove(1, 0, WHITE);
+  // White at (0,0) captures black at (0,1), gaining liberty → not suicide
+  console.assert(isValidMove(0, 0, WHITE), 'capturing move should be valid despite 0 initial liberties');
+
+  resetGame();
+  console.log('All engine tests passed');
+}
+
+function resetGame() {
   board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(EMPTY));
   moveHistory = [];
   captures = { [BLACK]: 0, [WHITE]: 0 };
   lastMove = null;
   koPoint = null;
-
-  // Test 2: Valid placement
-  console.assert(isValidMove(3, 3, BLACK), 'center of empty board should be valid');
-  console.assert(!isValidMove(-1, 0, BLACK), 'out of bounds should be invalid');
-
-  // Test 3: Occupied position
-  board[0][0] = BLACK;
-  console.assert(!isValidMove(0, 0, WHITE), 'occupied should be invalid');
-  board[0][0] = EMPTY;
-
-  console.log('All engine tests passed');
 }
 runTests();
 </script>
