@@ -599,6 +599,196 @@ function resetGame() {
   lastMove = null;
   koPoint = null;
 }
+
+function endGame() {
+  gameState = 'SCORING';
+  updateUI();
+  setStatus('对局结束');
+}
+
+// ===== Game Flow =====
+let consecutivePasses = 0;
+let aiThinking = false;
+
+// Temporary mock AI — replaced by real AI in Task 8
+// Picks a random valid move so the game is playable during development
+async function aiMakeMove() {
+  if (gameState !== 'PLAYING' || currentPlayer !== WHITE) return;
+  aiThinking = true;
+  updateUI();
+  setStatus('AI 思考中...');
+
+  // Small delay to simulate thinking
+  await new Promise(r => setTimeout(r, 500));
+
+  // Pick random valid move
+  const valid = [];
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (isValidMove(r, c, WHITE)) valid.push({ row: r, col: c });
+    }
+  }
+
+  if (valid.length === 0 || Math.random() < 0.05) {
+    // Pass
+    consecutivePasses++;
+    moveHistory.push({ row: -1, col: -1, color: WHITE, captures: [], prevBoard: cloneBoard(board), prevKoPoint: koPoint ? {...koPoint} : null });
+    setStatus('白棋 pass');
+  } else {
+    const move = valid[Math.floor(Math.random() * valid.length)];
+    const captured = executeMove(move.row, move.col, WHITE);
+    consecutivePasses = 0;
+    setStatus(captured.length > 0 ? `白棋落子，提走 ${captured.length} 子` : '白棋落子');
+  }
+
+  currentPlayer = BLACK;
+  aiThinking = false;
+  drawBoard();
+  updateUI();
+
+  if (consecutivePasses >= 2) endGame();
+}
+// NOTE: This mock AI is replaced by the full AI engine in Task 8
+
+function getOpponent(color) {
+  return color === BLACK ? WHITE : BLACK;
+}
+
+function updateUI() {
+  const turnEl = document.getElementById('turnIndicator');
+  const myTurn = currentPlayer === BLACK && gameState === 'PLAYING';
+
+  if (gameState === 'IDLE') {
+    turnEl.innerHTML = '点击"新局"开始';
+  } else if (gameState === 'SCORING') {
+    turnEl.innerHTML = '对局结束';
+  } else if (myTurn) {
+    turnEl.innerHTML = aiThinking
+      ? '<span class="spinner"></span> AI 思考中...'
+      : '🔸 您的回合（黑）';
+  } else {
+    turnEl.innerHTML = aiThinking
+      ? '<span class="spinner"></span> AI 思考中...'
+      : '🔹 AI 回合（白）';
+  }
+
+  document.getElementById('capturesB').textContent = captures[BLACK];
+  document.getElementById('capturesW').textContent = captures[WHITE];
+  document.getElementById('moveCount').textContent = moveHistory.length;
+
+  // Button states
+  const playing = gameState === 'PLAYING';
+  const myTurnPlaying = playing && currentPlayer === BLACK && !aiThinking;
+  document.getElementById('btnPass').disabled = !myTurnPlaying;
+  document.getElementById('btnResign').disabled = !playing;
+  document.getElementById('btnUndo').disabled = !myTurnPlaying || moveHistory.length < 2;
+  document.getElementById('btnScore').disabled = !myTurnPlaying;
+  document.getElementById('btnNew').disabled = aiThinking;
+}
+
+function handlePlayerMove(row, col) {
+  if (gameState !== 'PLAYING') return;
+  if (currentPlayer !== BLACK) return;
+  if (aiThinking) return;
+
+  if (!isValidMove(row, col, BLACK)) {
+    setStatus('此处不可落子');
+    return;
+  }
+
+  const captured = executeMove(row, col, BLACK);
+  consecutivePasses = 0;
+  currentPlayer = WHITE;
+  drawBoard();
+  updateUI();
+  setStatus(captured.length > 0
+    ? `提走 ${captured.length} 子`
+    : `黑棋落子 (${row},${col})`);
+
+  // Trigger AI
+  setTimeout(() => aiMakeMove(), 100);
+}
+
+function handlePass() {
+  if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
+
+  consecutivePasses++;
+  moveHistory.push({ row: -1, col: -1, color: BLACK, captures: [], prevBoard: cloneBoard(board), prevKoPoint: koPoint ? {...koPoint} : null });
+  currentPlayer = WHITE;
+  updateUI();
+  setStatus('黑棋 pass');
+
+  if (consecutivePasses >= 2) {
+    endGame();
+    return;
+  }
+
+  setTimeout(() => aiMakeMove(), 100);
+}
+
+function handleResign() {
+  if (gameState !== 'PLAYING') return;
+  gameState = 'SCORING';
+  updateUI();
+  setStatus('黑棋认输，白棋胜！');
+}
+
+function handleUndo() {
+  if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
+  if (moveHistory.length < 2) return;
+
+  undoLastTwoMoves();
+  consecutivePasses = 0;
+  currentPlayer = BLACK;
+  drawBoard();
+  updateUI();
+  setStatus('已悔棋');
+}
+
+function handleNewGame() {
+  board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(EMPTY));
+  moveHistory = [];
+  currentPlayer = BLACK;
+  gameState = 'PLAYING';
+  captures = { [BLACK]: 0, [WHITE]: 0 };
+  lastMove = null;
+  koPoint = null;
+  consecutivePasses = 0;
+  aiThinking = false;
+
+  document.getElementById('scorePanel').style.display = 'none';
+  drawBoard();
+  updateUI();
+  setStatus('新局开始 — 您执黑先手');
+}
+
+function setStatus(msg) {
+  document.getElementById('statusBar').textContent = msg;
+}
+
+// ===== Click handler =====
+canvas.addEventListener('click', (e) => {
+  if (gameState !== 'PLAYING' || currentPlayer !== BLACK || aiThinking) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const px = (e.clientX - rect.left) * scaleX;
+  const py = (e.clientY - rect.top) * scaleY;
+  const pos = pixelToBoard(px, py);
+  if (!pos) return;
+  handlePlayerMove(pos.row, pos.col);
+});
+
+// ===== Button bindings =====
+document.getElementById('btnPass').addEventListener('click', handlePass);
+document.getElementById('btnResign').addEventListener('click', handleResign);
+document.getElementById('btnUndo').addEventListener('click', handleUndo);
+document.getElementById('btnNew').addEventListener('click', handleNewGame);
+
+// Initial UI update
+updateUI();
+setStatus('点击"新局"开始对局');
+
 runTests();
 </script>
 
