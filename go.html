@@ -548,13 +548,16 @@ drawBoard();
 // ===== Self-test (run once on load) =====
 function runTests() {
   // Test 1: Capture in corner
-  // Setup: black stones at (0,1), (1,0), (1,1); white tries to play at (0,0)
+  // Place white at (0,0), surround with black at (0,1) and (1,0), leaving 1 liberty at (1,1)
+  board[0][0] = WHITE;
   board[0][1] = BLACK;
   board[1][0] = BLACK;
-  board[1][1] = BLACK;
-  const result = executeMove(0, 0, WHITE);
-  console.assert(board[0][0] === EMPTY, 'white stone should be captured immediately');
+  // Black plays at (1,1) — captures white at (0,0)
+  const result = executeMove(1, 1, BLACK);
+  console.assert(board[0][0] === EMPTY, 'white stone should be captured');
   console.assert(captures[BLACK] === 1, 'black should have 1 capture');
+  console.assert(result.length === 1, 'should return captured stones');
+  console.assert(result[0].row === 0 && result[0].col === 0, 'captured stone should be at (0,0)');
 
   // Cleanup
   board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(EMPTY));
@@ -566,9 +569,10 @@ function runTests() {
   // Test 2: Valid placement
   console.assert(isValidMove(3, 3, BLACK), 'center of empty board should be valid');
   console.assert(!isValidMove(-1, 0, BLACK), 'out of bounds should be invalid');
-  console.assert(!isValidMove(0, 0, BLACK), 'occupied should be invalid'); // still have test stone
 
-  // Cleanup test stone
+  // Test 3: Occupied position
+  board[0][0] = BLACK;
+  console.assert(!isValidMove(0, 0, WHITE), 'occupied should be invalid');
   board[0][0] = EMPTY;
 
   console.log('All engine tests passed');
