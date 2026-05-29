@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#BE185D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>🏮 麻将小账本</title>
+<link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIuertui9p+Wwj+i0puacrCIsCiAgInNob3J0X25hbWUiOiAi6bq56K6G5bCP6LSn5pysIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNGRkY1RjUiLAogICJ0aGVtZV9jb2xvciI6ICIjQkUxODVEIiwKICAiaWNvbnMiOiBbewogICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWwsPHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJz48cmVjdCB3aWR0aD0nMTAwJyBoZWlnaHQ9JzEwMCcgcng9JzIwJyBmaWxsPScjQkUxODVEJy8+PHRleHQgeD0nNTAnIHk9JzY4JyBmb250LXNpemU9JzUwJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBmaWxsPSd3aGl0ZSc+8J+GuDwvdGV4dD48L3N2Zz4iLAogICAgInNpemVzIjogIjE5MngxOTIiLAogICAgInR5cGUiOiAiaW1hZ2Uvc3ZnK3htbCIKICB9XQp9">
+<style>
+:root {
+  --rose-dark: #BE185D;
+  --rose: #DB2777;
+  --rose-light: #FCE7F3;
+  --rose-bg: #FFF5F5;
+  --win: #22C55E;
+  --lose: #EF4444;
+  --gray: #9CA3AF;
+  --text: #1F2937;
+  --text-secondary: #6B7280;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--rose-bg);
+  color: var(--text);
+  max-width: 420px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.header {
+  background: linear-gradient(135deg, var(--rose-dark), var(--rose));
+  color: #fff;
+  padding: 16px 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.header h1 { font-size: 18px; font-weight: 600; }
+.header .date { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+
+.main { flex:1; padding: 16px 16px 80px; overflow-y: auto; }
+
+.big-number {
+  text-align: center;
+  padding: 24px 0 8px;
+}
+.big-number .amount {
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+}
+.big-number .amount.win { color: var(--win); }
+.big-number .amount.lose { color: var(--lose); }
+.big-number .amount.empty { color: var(--gray); }
+.big-number .subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.message-card {
+  background: linear-gradient(135deg, var(--rose-light), #FBCFE8);
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  margin: 12px 0;
+}
+.message-card .emoji { font-size: 36px; margin-bottom: 8px; }
+.message-card .msg-text {
+  font-size: 15px;
+  color: #831843;
+  line-height: 1.8;
+  font-weight: 500;
+}
+
+.stats-row {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0 20px;
+}
+.stat-item {
+  flex: 1;
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 8px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.stat-item .stat-label { font-size: 11px; color: var(--gray); margin-bottom: 4px; }
+.stat-item .stat-value { font-size: 20px; font-weight: 700; }
+.stat-item .stat-value.win { color: var(--win); }
+.stat-item .stat-value.lose { color: var(--lose); }
+.stat-item .stat-value.neutral { color: var(--text); }
+
+.btn-record {
+  display: block;
+  width: 100%;
+  background: var(--rose);
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(219,39,119,0.3);
+  cursor: pointer;
+}
+.btn-record:active { transform: scale(0.98); }
+
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-top: 1px solid #f0e0e0;
+  display: flex;
+  padding: 6px 0;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+}
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--gray);
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+.tab-item.active { color: var(--rose); font-weight: 600; }
+
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item-wrap { margin-bottom: 4px; }
+.history-item {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.history-item .hi-date { font-size: 14px; }
+.history-item .hi-amount { font-size: 16px; font-weight: 700; }
+.history-item .hi-amount.win { color: var(--win); }
+.history-item .hi-amount.lose { color: var(--lose); }
+.history-detail {
+  display: none;
+  padding: 12px 16px;
+  background: var(--rose-light);
+  border-radius: 0 0 12px 12px;
+  margin-top: -4px;
+  font-size: 13px;
+  color: #831843;
+  line-height: 1.6;
+}
+.history-detail.open { display: block; }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--gray);
+}
+.empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 15px; }
+
+.export-preview {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  color: var(--text);
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+.btn-secondary {
+  display: block;
+  width: 100%;
+  background: #fff;
+  color: var(--rose);
+  border: 2px solid var(--rose);
+  border-radius: 24px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.btn-secondary:active { background: var(--rose-light); }
+.btn-secondary:disabled { opacity: 0.4; pointer-events: none; }
+
+/* Sheet */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 100;
+  display: none;
+  justify-content: center;
+  align-items: flex-end;
+}
+.sheet-overlay.open { display: flex; }
+.sheet {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 20px 16px 32px;
+  width: 100%;
+  max-width: 420px;
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet h3 { text-align: center; font-size: 16px; margin-bottom: 16px; }
+
+.choice-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.choice-btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 14px;
+  border: 2px solid #E5E7EB;
+  background: #F9FAFB;
+  font-size: 16px;
+  cursor: pointer;
+  text-align: center;
+}
+.choice-btn.selected-win { border-color: var(--win); background: #F0FDF4; color: var(--win); font-weight: 700; }
+.choice-btn.selected-lose { border-color: var(--lose); background: #FEF2F2; color: var(--lose); font-weight: 700; }
+
+.num-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.num-key {
+  padding: 14px;
+  font-size: 20px;
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  cursor: pointer;
+  text-align: center;
+}
+.num-key:active { background: #E5E7EB; }
+.num-key.action { background: #F3F4F6; color: var(--text-secondary); font-size: 14px; }
+.amount-display { text-align: center; font-size: 28px; font-weight: 700; margin-bottom: 12px; padding: 8px; }
+
+.btn-save {
+  display: block;
+  width: 100%;
+  background: var(--rose);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-save:disabled { opacity: 0.4; pointer-events: none; }
+.btn-save:active { transform: scale(0.98); }
+
+.page { display: none; }
+.page.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏮 麻将小账本</h1>
+  <div class="date" id="headerDate"></div>
+</div>
+
+<div class="main">
+  <div class="page active" id="pageHome">
+    <div class="big-number">
+      <div class="amount empty" id="todayAmount">—</div>
+      <div class="subtitle" id="todaySubtitle"></div>
+    </div>
+    <div class="message-card" id="messageCard" style="display:none">
+      <div class="emoji" id="msgEmoji"></div>
+      <div class="msg-text" id="msgText"></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-item">
+        <div class="stat-label">本周</div>
+        <div class="stat-value neutral" id="statWeek">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">本月</div>
+        <div class="stat-value neutral" id="statMonth">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">胜率</div>
+        <div class="stat-value neutral" id="statRate">—</div>
+      </div>
+    </div>
+    <button class="btn-record" id="btnRecord">✏️ 记录今天</button>
+  </div>
+
+  <div class="page" id="pageHistory">
+    <div class="history-list" id="historyList"></div>
+    <div class="empty-state" id="historyEmpty">
+      <div class="empty-icon">📋</div>
+      <p>还没有记录哦~</p>
+    </div>
+  </div>
+
+  <div class="page" id="pageExport">
+    <div class="export-preview" id="exportPreview">暂无记录</div>
+    <button class="btn-secondary" id="btnCopy">📋 复制文本</button>
+    <button class="btn-secondary" id="btnDownload">💾 下载文件</button>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-item active" data-tab="home">🏠 首页</button>
+  <button class="tab-item" data-tab="history">📋 历史</button>
+  <button class="tab-item" data-tab="export">📤 导出</button>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay">
+  <div class="sheet">
+    <h3>记录今天的战况</h3>
+    <div class="choice-row">
+      <button class="choice-btn" id="choiceWin">🀄 赢了</button>
+      <button class="choice-btn" id="choiceLose">🀄 输了</button>
+    </div>
+    <div class="amount-display" id="amountDisplay">¥0</div>
+    <div class="num-pad" id="numPad"></div>
+    <button class="btn-save" id="btnSave" disabled>保存</button>
+  </div>
+</div>
+
+<script>
+// Service Worker
+if ('serviceWorker' in navigator) {
+  var swCode = 'self.addEventListener("install",function(e){e.waitUntil(caches.open("mj-v1").then(function(c){return c.addAll(["./"]);}));self.skipWaiting();});' +
+    'self.addEventListener("activate",function(e){e.waitUntil(self.clients.claim());});' +
+    'self.addEventListener("fetch",function(e){e.respondWith(caches.match(e.request).then(function(r){return r||fetch(e.request);}));});';
+  var swBlob = new Blob([swCode], {type:'application/javascript'});
+  var swUrl = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl).catch(function(){});
+}
+
+// ====== 数据层 ======
+var STORAGE_KEY = 'mahjong_records';
+
+function loadRecords() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw).records || [] : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveRecords(records) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ records: records }));
+}
+
+function getTodayRecord() {
+  var today = new Date().toISOString().slice(0, 10);
+  return loadRecords().find(function(r) { return r.date === today; }) || null;
+}
+
+function saveTodayRecord(amount, message) {
+  var today = new Date().toISOString().slice(0, 10);
+  var records = loadRecords();
+  var idx = records.findIndex(function(r) { return r.date === today; });
+  var entry = { date: today, amount: amount, message: message };
+  if (idx >= 0) {
+    records[idx] = entry;
+  } else {
+    records.push(entry);
+  }
+  records.sort(function(a, b) { return b.date.localeCompare(a.date); });
+  saveRecords(records);
+  return entry;
+}
+
+function getStats() {
+  var records = loadRecords();
+  var now = new Date();
+  var todayStr = now.toISOString().slice(0, 10);
+  var dayOfWeek = now.getDay();
+  var mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  var monday = new Date(now);
+  monday.setDate(now.getDate() - mondayOffset);
+  var weekStart = monday.toISOString().slice(0, 10);
+  var monthStart = todayStr.slice(0, 7) + '-01';
+  var weekTotal = 0, monthTotal = 0, winCount = 0, totalCount = 0;
+  for (var i = 0; i < records.length; i++) {
+    var r = records[i];
+    if (r.date >= weekStart) weekTotal += r.amount;
+    if (r.date >= monthStart) monthTotal += r.amount;
+    totalCount++;
+    if (r.amount > 0) winCount++;
+  }
+  var winRate = totalCount > 0 ? Math.round((winCount / totalCount) * 100) : null;
+  return { weekTotal: weekTotal, monthTotal: monthTotal, winRate: winRate };
+}
+
+function getTodayStr() {
+  var now = new Date();
+  var days = ['日','一','二','三','四','五','六'];
+  return now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 周' + days[now.getDay()];
+}
+
+// ====== 消息模板 ======
+var MESSAGES = {
+  bigWin: [
+    '妈，今天赢了{amount}块！比我写代码赚得还稳，要不咱家改行搓麻将吧😂 开心就好，别太累~',
+    '天哪妈！{amount}块！你是赌神附体了吧🧧 今天晚上加菜，必须庆祝一下！',
+    '妈你今天太猛了，赢了{amount}！我在公司写一天代码都不如你搓一圈麻将💪 妈最棒~',
+    '赢了{amount}！妈你这手气，不去参加雀神大赛真是屈才了😆 记住早点歇着哦~',
+    '{amount}块进账！妈你今天一定是穿了幸运袜🧦 继续保持，但要少熬夜打牌哈！',
+    '妈你今天手气炸了，赢了{amount}！看得我都想去拜你为师了🀄 不过别太兴奋，早点休息~',
+    '恭喜发财妈！{amount}块到手！这战绩比A股还靠谱📈 明天见好就收哦~',
+    '妈你今天赢了{amount}！你打麻将的直觉比我写代码的逻辑还准😂 为妈骄傲！',
+    '赢了{amount}块！妈今天气场两米八👑 记得喝杯温水，打牌也别忘了照顾好自己~',
+    '妈，{amount}块！你这个胜率让我怀疑你是不是偷偷上麻将培训班了😏 开开心心最重要~'
+  ],
+  smallWin: [
+    '妈，今天赢了{amount}块！小赢也是赢，细水长流嘛~ 开心就好💕',
+    '赢{amount}块也不赖！蚂蚁腿也是肉，积少成多🐜 妈今天心情一定不错吧~',
+    '{amount}块到手！妈你今天稳扎稳打，有大将风范👏 继续保持这个节奏！',
+    '妈赢了{amount}！虽然不多但胜在稳定，比我买奶茶强多了😄 记得喝点热水~',
+    '小赢{amount}块，开心就好！麻将嘛，图个乐子，赢了就是赚到✨ 妈早点休息~',
+    '今天赚了{amount}！妈你的心态真好，稳中求胜🎯 明天继续加油！',
+    '{amount}块入账，妈今天的奶茶钱有了🧋 下次争取赢个火锅回来！',
+    '妈赢了{amount}，这个节奏很舒服啊~ 不贪大，稳着来才是高手👍 为你开心！',
+    '收{amount}块开心钱！妈今天肯定笑得很灿烂吧😊 看到妈开心我也开心~',
+    '赢{amount}！妈你这是可持续发展战略，每天赢一点，生活美滋滋🌞'
+  ],
+  breakEven: [
+    '妈，今天打平了！不输就是赚，心态稳住💪 明天再战！',
+    '平局也是一种胜利！妈今天牌运平平但心态满分👌 早点睡，明天好运就来了~',
+    '打了个平手，说明妈今天稳如泰山⛰️ 不输不赢最养生，继续保持！',
+    '妈，今天不输不赢，等于免费玩了一下午麻将，纯赚娱乐😄 开心就好~',
+    '平了也挺好！妈今天的乐趣是无价的，钱不钱的没关系✨ 明天继续快乐搓麻！',
+    '打个平手说明妈今天状态平衡，不好不坏正是生活常态🌿 舒舒服服的最佳状态~',
+    '不输不赢，妈今天是和平使者🕊️ 牌桌上气场稳重，儿子给你点赞！',
+    '妈，平局说明你在保存实力，明天肯定爆发🔥 记得泡个脚再睡~',
+    '今天打平，妈你的稳健打法让人安心😌 不贪不躁，这才是高手风范！',
+    '平手日也是好日子！妈今天肯定玩得很开心吧，那就够了🎈 钱不重要，开心才重要~'
+  ],
+  smallLose: [
+    '妈，输了{amount}没事~ 这叫战略性休整，明天肯定翻盘！记得喝点热水早点休息❤️',
+    '输了{amount}小意思！运气是流动的，今天给她明天就是你🔄 妈妈早点睡，养足精神~',
+    '妈别放心上，就输了{amount}~ 麻将嘛，有输有赢才有意思。早点歇着，身体最重要💝',
+    '今天小亏{amount}，但妈的心情可不能亏😊 输赢平常心，儿子永远觉得你最棒！',
+    '{amount}块就当给牌友买奶茶了🧋 明天运气转回来，肯定赢个大的！妈加油~',
+    '妈，输了{amount}块而已，比起你的快乐来不值一提💕 泡杯热茶，看看电视，放松一下~',
+    '小输{amount}不碍事！妈今天肯定是故意放水的，明天拿出真本事来😉 早点休息哦~',
+    '妈，{amount}块就当今天买了个开心，重要的是跟朋友在一起的热闹🥰 明天继续！',
+    '输了{amount}？没关系妈，这叫攒人品，明天运气加倍反弹🚀 记得睡前泡泡脚~',
+    '妈，小输{amount}不叫输，叫战略性投资📊 明天肯定翻倍赚回来！开开心心最重要❤️'
+  ],
+  bigLose: [
+    '妈，今天输了{amount}别往心里去！麻将就这样，有时运气不好很正常。早点休息，明天又是新的一天，儿子永远支持你💪❤️',
+    '妈，输了{amount}没什么大不了的！你开心才是最重要的，钱可以再赚，身体不能垮。泡杯热茶，今晚早点睡🫂',
+    '今天输{amount}就当破财免灾！妈妈的身体健康和好心情比什么都重要✨ 明天记得少打两圈，别太累~',
+    '妈，{amount}块买不了你的开心！输了就输了，儿子在呢💝 今晚别看牌了，看看电视放松一下~',
+    '妈别难过，今天就是运气不好而已。{amount}块我们下次赢回来！你永远是我最棒的妈妈👩‍👦 早点歇着哦~',
+    '输了{amount}不是你的问题，是今天的牌不好！妈的手艺我最清楚🀄 早点休息，养足精神明天再战！',
+    '妈，{amount}只是一个数字。你的笑容才是无价的💎 洗个热水澡，喝杯牛奶，好好睡一觉~',
+    '今天手气不好输{amount}，但妈妈的心气不能输！明天太阳照常升起🌅 儿子永远是你的后盾！',
+    '妈，输了{amount}没事的。人生就像麻将，起起落落很正常🎢 重要的是妈妈每天都开开心心的！',
+    '{amount}块换不来妈妈的快乐。早点休息妈，明天又是全新的一天，运气也会全新的✨ 爱你~'
+  ]
+};
+
+function pickMessage(amount) {
+  var tier;
+  if (amount >= 200) tier = 'bigWin';
+  else if (amount > 0) tier = 'smallWin';
+  else if (amount === 0) tier = 'breakEven';
+  else if (amount >= -199) tier = 'smallLose';
+  else tier = 'bigLose';
+  var pool = MESSAGES[tier];
+  var idx = Math.floor(Math.random() * pool.length);
+  return pool[idx].replace('{amount}', String(Math.abs(amount)));
+}
+
+function getEmoji(amount) {
+  if (amount >= 200) return '🥳';
+  if (amount > 0) return '😊';
+  if (amount === 0) return '😌';
+  if (amount >= -199) return '🤗';
+  return '💪';
+}
+
+// ====== 渲染 ======
+function renderHome() {
+  var record = getTodayRecord();
+  var todayEl = document.getElementById('todayAmount');
+  var subtitleEl = document.getElementById('todaySubtitle');
+  var msgCard = document.getElementById('messageCard');
+  var msgEmoji = document.getElementById('msgEmoji');
+  var msgText = document.getElementById('msgText');
+
+  if (record) {
+    var amt = record.amount;
+    todayEl.textContent = amt >= 0 ? '+' + amt : String(amt);
+    todayEl.className = 'amount ' + (amt > 0 ? 'win' : amt < 0 ? 'lose' : 'empty');
+    var desc = amt > 0 ? '今日净胜 ¥' + amt + ' · 盈利日 ✨'
+             : amt < 0 ? '今日净输 ¥' + Math.abs(amt) + ' · 休整日 🌙'
+             : '今日打平 · 养生局 🍵';
+    subtitleEl.textContent = desc;
+    msgCard.style.display = 'block';
+    msgEmoji.textContent = getEmoji(amt);
+    msgText.textContent = record.message;
+  } else {
+    todayEl.textContent = '—';
+    todayEl.className = 'amount empty';
+    subtitleEl.textContent = '今天还没记录哦~';
+    msgCard.style.display = 'none';
+  }
+
+  var stats = getStats();
+  setStat('statWeek', stats.weekTotal);
+  setStat('statMonth', stats.monthTotal);
+  setStat('statRate', stats.winRate !== null ? stats.winRate + '%' : null);
+}
+
+function setStat(id, value) {
+  var el = document.getElementById(id);
+  if (value === null || value === undefined) {
+    el.textContent = '—';
+    el.className = 'stat-value neutral';
+    return;
+  }
+  if (typeof value === 'string') {
+    el.textContent = value;
+    el.className = 'stat-value neutral';
+    return;
+  }
+  el.textContent = value >= 0 ? '+' + value : String(value);
+  el.className = 'stat-value ' + (value > 0 ? 'win' : value < 0 ? 'lose' : 'neutral');
+}
+
+// ====== Tab 切换 ======
+function switchTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelector('.tab-item[data-tab="' + tab + '"]').classList.add('active');
+  document.getElementById('page' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  if (tab === 'home') renderHome();
+  else if (tab === 'history') renderHistory();
+  else if (tab === 'export') renderExport();
+}
+
+document.querySelectorAll('.tab-item').forEach(function(btn) {
+  btn.addEventListener('click', function() { switchTab(btn.dataset.tab); });
+});
+
+// ====== 记账面板 ======
+var sheetState = { win: true, amount: '' };
+var overlay = document.getElementById('sheetOverlay');
+var choiceWin = document.getElementById('choiceWin');
+var choiceLose = document.getElementById('choiceLose');
+var amountDisplay = document.getElementById('amountDisplay');
+var numPad = document.getElementById('numPad');
+var btnSave = document.getElementById('btnSave');
+
+document.getElementById('btnRecord').addEventListener('click', function() {
+  var existing = getTodayRecord();
+  if (existing) {
+    sheetState.win = existing.amount >= 0;
+    sheetState.amount = String(Math.abs(existing.amount));
+  } else {
+    sheetState.win = true;
+    sheetState.amount = '';
+  }
+  updateSheetUI();
+  overlay.classList.add('open');
+});
+
+overlay.addEventListener('click', function(e) {
+  if (e.target === overlay) overlay.classList.remove('open');
+});
+
+choiceWin.addEventListener('click', function() { sheetState.win = true; updateSheetUI(); });
+choiceLose.addEventListener('click', function() { sheetState.win = false; updateSheetUI(); });
+
+function updateSheetUI() {
+  choiceWin.className = 'choice-btn' + (sheetState.win ? ' selected-win' : '');
+  choiceLose.className = 'choice-btn' + (!sheetState.win ? ' selected-lose' : '');
+  var prefix = sheetState.win ? '' : '-';
+  amountDisplay.textContent = '¥' + prefix + (sheetState.amount || '0');
+  btnSave.disabled = !sheetState.amount || sheetState.amount === '0';
+}
+
+function buildNumPad() {
+  var keys = ['1','2','3','4','5','6','7','8','9','清','0','⌫'];
+  keys.forEach(function(key) {
+    var btn = document.createElement('button');
+    btn.className = 'num-key' + (key === '清' || key === '⌫' ? ' action' : '');
+    btn.textContent = key;
+    btn.addEventListener('click', function() { handleNumKey(key); });
+    numPad.appendChild(btn);
+  });
+}
+
+function handleNumKey(key) {
+  if (key === '清') {
+    sheetState.amount = '';
+  } else if (key === '⌫') {
+    sheetState.amount = sheetState.amount.slice(0, -1);
+  } else {
+    if (sheetState.amount.length >= 5) return;
+    sheetState.amount += key;
+  }
+  updateSheetUI();
+}
+
+btnSave.addEventListener('click', function() {
+  var rawAmount = parseInt(sheetState.amount, 10) || 0;
+  var finalAmount = sheetState.win ? rawAmount : -rawAmount;
+  var message = pickMessage(finalAmount);
+  saveTodayRecord(finalAmount, message);
+  overlay.classList.remove('open');
+  renderHome();
+});
+
+buildNumPad();
+
+// ====== 历史 ======
+function renderHistory() {
+  var records = loadRecords();
+  var listEl = document.getElementById('historyList');
+  var emptyEl = document.getElementById('historyEmpty');
+
+  if (records.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = records.map(function(r) {
+    var isWin = r.amount > 0;
+    var isLose = r.amount < 0;
+    var cls = isWin ? 'win' : isLose ? 'lose' : '';
+    var prefix = r.amount >= 0 ? '+' : '';
+    var label = r.amount > 0 ? '赢' : r.amount < 0 ? '输' : '平';
+    return '<div class="history-item-wrap">' +
+      '<div class="history-item" data-date="' + r.date + '" onclick="toggleHistoryDetail(this)">' +
+        '<div>' +
+          '<div class="hi-date">' + formatDate(r.date) + '</div>' +
+          '<div style="font-size:11px;color:#9CA3AF;margin-top:2px">' + label + ' ¥' + Math.abs(r.amount) + '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<span class="hi-amount ' + cls + '">' + prefix + r.amount + '</span>' +
+          '<span class="arrow" style="font-size:12px;color:#ccc;">▶</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="history-detail" id="detail-' + r.date + '">' + r.message + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function formatDate(dateStr) {
+  var d = new Date(dateStr + 'T00:00:00');
+  var days = ['日','一','二','三','四','五','六'];
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + days[d.getDay()];
+}
+
+function toggleHistoryDetail(el) {
+  var date = el.dataset.date;
+  var detail = document.getElementById('detail-' + date);
+  var arrow = el.querySelector('.arrow');
+  if (detail) {
+    var isOpen = detail.classList.contains('open');
+    document.querySelectorAll('.history-detail.open').forEach(function(d) { d.classList.remove('open'); });
+    document.querySelectorAll('.history-item .arrow').forEach(function(s) { s.textContent = '▶'; });
+    if (!isOpen) {
+      detail.classList.add('open');
+      if (arrow) arrow.textContent = '▼';
+    }
+  }
+}
+
+// ====== 导出 ======
+function renderExport() {
+  var records = loadRecords();
+  var previewEl = document.getElementById('exportPreview');
+  var btnCopy = document.getElementById('btnCopy');
+  var btnDownload = document.getElementById('btnDownload');
+
+  if (records.length === 0) {
+    previewEl.textContent = '还没有记录，无法导出~';
+    btnCopy.disabled = true;
+    btnDownload.disabled = true;
+    previewEl._text = '';
+    return;
+  }
+
+  btnCopy.disabled = false;
+  btnDownload.disabled = false;
+
+  var lines = ['🏮 麻将小账本', ''];
+  for (var i = 0; i < records.length; i++) {
+    var r = records[i];
+    var label = r.amount > 0 ? '赢' : r.amount < 0 ? '输' : '平';
+    var prefix = r.amount >= 0 ? '+' : '';
+    lines.push(r.date + '  ' + label + ' ¥' + Math.abs(r.amount) + '  |  ' + r.message);
+  }
+  var text = lines.join('\n');
+  previewEl.textContent = text;
+  previewEl._text = text;
+}
+
+document.getElementById('btnCopy').addEventListener('click', function() {
+  var text = document.getElementById('exportPreview')._text || '';
+  if (!text) return;
+  try {
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = document.getElementById('btnCopy');
+      var orig = btn.textContent;
+      btn.textContent = '✅ 已复制！';
+      btn.style.background = '#F0FDF4';
+      btn.style.borderColor = '#22C55E';
+      btn.style.color = '#22C55E';
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.style.background = '#fff';
+        btn.style.borderColor = 'var(--rose)';
+        btn.style.color = 'var(--rose)';
+      }, 2000);
+    });
+  } catch (e) {
+    alert('复制失败，请长按文本手动复制');
+  }
+});
+
+document.getElementById('btnDownload').addEventListener('click', function() {
+  var text = document.getElementById('exportPreview')._text || '';
+  if (!text) return;
+  var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '麻将小账本_' + new Date().toISOString().slice(0, 10) + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// ====== 初始化 ======
+document.getElementById('headerDate').textContent = getTodayStr();
+renderHome();
+</script>
+</body>
+</html>
